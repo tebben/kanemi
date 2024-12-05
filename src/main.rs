@@ -3,14 +3,15 @@ mod knmi;
 use dotenv::dotenv;
 use knmi::dataplatform::api::OpenDataAPI;
 use knmi::nowcast::dataset::read_hdf5;
+use knmi::utils::projection;
 use std::env;
 
 #[tokio::main]
 async fn main() {
     dotenv().ok();
 
-    read_hdf5("./example_data/test.hdf5".to_string());
-    return;
+    //read_hdf5("./example_data/test.hdf5".to_string());
+    //return;
 
     let api_key = env::var("KNMI_API_KEY").expect("API_KEY must be set");
     let oda = OpenDataAPI::new(
