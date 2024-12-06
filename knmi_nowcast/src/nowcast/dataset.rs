@@ -1,30 +1,10 @@
 //#[cfg(feature = "blosc")]
 //use hdf5::filters::blosc_set_nthreads;
-use super::projection;
+use hdf5::File;
 use hdf5::Result;
 
-// Not used yet
-/* pub struct Dataset {
-    file_path: String,
-    row_offset: i32,
-    number_of_rows: i32,
-    number_of_columns: i32,
-    proj4_string: String,
-} */
-
-pub fn read_hdf5(_file: String) -> Result<()> {
-    // use to supress warnings for now
-    let lon = 5.0; // Example longitude
-    let lat = 52.0; // Example latitude
-
-    if let Ok((col, row)) = projection::lon_lat_to_grid(lon, lat) {
-        println!("Grid coordinates: Column = {}, Row = {}", col, row);
-    } else {
-        eprintln!("Error occurred.");
-    }
-
-    //use Color::*;
-    //let file = File::open(file)?;
+pub fn read_hdf5(file_path: String) -> Result<()> {
+    let file = File::open(file_path)?;
 
     /*     let group_geographic = file.group("geographic")?;
     let group_projection = group_geographic.group("map_projection")?; */
@@ -73,6 +53,6 @@ mod tests {
     use super::*;
     #[test]
     fn test_read_hdf5() {
-        read_hdf5("./example_data/test.hdf5".to_string()).unwrap();
+        read_hdf5("./example_data/example.hdf5".to_string()).unwrap();
     }
 }
