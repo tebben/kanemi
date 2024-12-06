@@ -1,0 +1,12 @@
+[package]
+name = "knmi-test"
+version = "0.1.0"
+authors = ["Tim Ebben"]
+license = "MIT"
+edition = "2021"
+
+
+[dependencies]
+knmi_nowcast = { path = "../knmi_nowcast" }
+tokio = { version = "1.42.0", features = ["full"] }
+dotenv = "0.15"

@@ -18,7 +18,7 @@ const CALIBRATION_FACTOR: f64 = 0.01;
 ///
 /// # Examples
 ///
-/// ```rust,ignore
+/// ```rust
 /// use knmi_nowcast::nowcast::transformation::pixel_to_mm_hr;
 ///
 /// let mm_hr = pixel_to_mm_hr(113);

@@ -1,5 +1,3 @@
-mod knmi_nowcast;
-
 use dotenv::dotenv;
 use knmi_nowcast::dataplatform::api::OpenDataAPI;
 use knmi_nowcast::nowcast::projection::lon_lat_to_grid;
@@ -18,15 +16,6 @@ async fn main() {
         api_key,
     );
 
-    let value_mm_hr = pixel_to_mm_hr(113);
-    println!("Value in mm/hr: {}", value_mm_hr);
-
-    let result = lon_lat_to_grid(12.2, 13.3);
-    match result {
-        Ok((col, row)) => println!("Grid coordinates: ({}, {})", col, row),
-        Err(e) => println!("Error: {:?}", e),
-    }
-
     match oda.get_latest_files(1).await {
         Ok(response) => {
             println!("Files: {:?}", response.files);
@@ -40,6 +29,9 @@ async fn main() {
             eprintln!("Error: {}", e);
         }
     }
+
+    test_lon_lat_to_grid();
+    test_pixel_to_mm_hr();
 }
 
 async fn get_download_url(oda: &OpenDataAPI, filename: &str) {
@@ -57,4 +49,19 @@ async fn get_download_url(oda: &OpenDataAPI, filename: &str) {
             return;
         }
     }
+}
+
+fn test_lon_lat_to_grid() {
+    // Test the corners of the grid
+    assert_eq!(lon_lat_to_grid(4.9, 52.3).unwrap(), (0, 0));
+    assert_eq!(lon_lat_to_grid(5.0, 52.3).unwrap(), (1, 0));
+    assert_eq!(lon_lat_to_grid(4.9, 52.4).unwrap(), (0, 1));
+    assert_eq!(lon_lat_to_grid(5.0, 52.4).unwrap(), (1, 1));
+}
+
+fn test_pixel_to_mm_hr() {
+    assert_eq!(pixel_to_mm_hr(0), 0.0);
+    assert_eq!(pixel_to_mm_hr(113), 0.0);
+    assert_eq!(pixel_to_mm_hr(114), 0.25);
+    assert_eq!(pixel_to_mm_hr(255), 50.0);
 }

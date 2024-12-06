@@ -23,25 +23,25 @@ use proj4rs;
 use proj4rs::proj::Proj;
 
 /// Offset for the rows in the HDF5 nowcast grid.
-const GEO_ROW_OFFSET: f64 = 3649.98193359375;
+pub const GEO_ROW_OFFSET: f64 = 3649.98193359375;
 
 /// Total number of rows in the grid.
-const GEO_NUMBER_OF_ROWS: f64 = 765.0;
+pub const GEO_NUMBER_OF_ROWS: f64 = 765.0;
 
 /// Total number of columns in the grid.
-const GEO_NUMBER_OF_COLUMNS: f64 = 700.0;
+pub const GEO_NUMBER_OF_COLUMNS: f64 = 700.0;
 
 /// Bottom left corner of the grid.
-const GEO_BOTTOM_LEFT: (f64, f64) = (0.0, 49.362064361572266);
+pub const GEO_BOTTOM_LEFT: (f64, f64) = (0.0, 49.362064361572266);
 
 /// Top left corner of the grid.
-const GEO_TOP_LEFT: (f64, f64) = (0.0, 55.973602294921875);
+pub const GEO_TOP_LEFT: (f64, f64) = (0.0, 55.973602294921875);
 
 /// Top right corner of the grid.
-const GEO_TOP_RIGHT: (f64, f64) = (10.856452941894531, 55.388973236083984);
+pub const GEO_TOP_RIGHT: (f64, f64) = (10.856452941894531, 55.388973236083984);
 
 /// Bottom right corner of the grid.
-const GEO_BOTTOM_RIGHT: (f64, f64) = (9.009300231933594, 48.895301818847656);
+pub const GEO_BOTTOM_RIGHT: (f64, f64) = (9.009300231933594, 48.895301818847656);
 
 /// WGS84 projection used as the source coordinate system.
 static PROJ_4326: Lazy<Proj> = Lazy::new(|| {
@@ -80,7 +80,7 @@ pub enum ProjectionError {
 /// - `ProjectionError::OutOfBounds`: If the resulting grid indices are outside the valid range.
 ///
 /// # Examples
-/// ```rust,ignore
+/// ```rust
 /// use knmi_nowcast::nowcast::projection::lon_lat_to_grid;
 ///
 /// let result = lon_lat_to_grid(4.9, 52.3);
