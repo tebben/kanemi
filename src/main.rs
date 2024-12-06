@@ -1,24 +1,31 @@
-mod knmi;
+mod knmi_nowcast;
 
 use dotenv::dotenv;
-use knmi::dataplatform::api::OpenDataAPI;
-use knmi::nowcast::dataset::read_hdf5;
-use knmi::utils::projection;
+use knmi_nowcast::dataplatform::api::OpenDataAPI;
+use knmi_nowcast::nowcast::projection::lon_lat_to_grid;
+use knmi_nowcast::nowcast::transformation::pixel_to_mm_hr;
 use std::env;
 
 #[tokio::main]
 async fn main() {
     dotenv().ok();
 
-    //read_hdf5("./example_data/test.hdf5".to_string());
-    //return;
-
     let api_key = env::var("KNMI_API_KEY").expect("API_KEY must be set");
     let oda = OpenDataAPI::new(
         String::from("https://api.dataplatform.knmi.nl/open-data/v1"),
         String::from("radar_forecast"),
+        String::from("2.0"),
         api_key,
     );
+
+    let value_mm_hr = pixel_to_mm_hr(113);
+    println!("Value in mm/hr: {}", value_mm_hr);
+
+    let result = lon_lat_to_grid(12.2, 13.3);
+    match result {
+        Ok((col, row)) => println!("Grid coordinates: ({}, {})", col, row),
+        Err(e) => println!("Error: {:?}", e),
+    }
 
     match oda.get_latest_files(1).await {
         Ok(response) => {

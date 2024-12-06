@@ -1,1 +1,1 @@
-pub mod knmi;
+pub mod knmi_nowcast;

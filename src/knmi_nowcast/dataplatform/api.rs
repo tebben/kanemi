@@ -9,22 +9,24 @@ use super::models;
 pub struct OpenDataAPI {
     base_url: String,
     dataset_name: String,
+    version: String,
     api_key: String,
 }
 
 impl OpenDataAPI {
-    pub fn new(base_url: String, dataset_name: String, api_key: String) -> Self {
+    pub fn new(base_url: String, dataset_name: String, version: String, api_key: String) -> Self {
         OpenDataAPI {
             base_url,
             dataset_name,
+            version,
             api_key,
         }
     }
 
     fn get_latest_file_url_and_params(&self, max_files: i8) -> (String, [(&str, String); 3]) {
         let url = format!(
-            "{}/datasets/{}/versions/2.0/files",
-            &self.base_url, &self.dataset_name
+            "{}/datasets/{}/versions/{}/files",
+            &self.base_url, &self.dataset_name, &self.version
         );
 
         let query_params = [
@@ -38,8 +40,8 @@ impl OpenDataAPI {
 
     fn get_file_download_url(&self, filename: &str) -> String {
         format!(
-            "{}/datasets/{}/versions/2.0/files/{}/url",
-            &self.base_url, &self.dataset_name, filename
+            "{}/datasets/{}/versions/{}/files/{}/url",
+            &self.base_url, &self.dataset_name, &self.version, filename
         )
     }
 

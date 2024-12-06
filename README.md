@@ -4,7 +4,7 @@ Nowcast precipitation forecast up to 2 hours ahead, per 5 minutes, over the Neth
 
 The goals is to provide a library and tools to fetch, process and visualize KNMI nowcast precipitation forecast data.
 
-> Warning: This repo is my first introduction to Rust and is used as a learning project. The code is probably not optimized and may contain bugs.
+> Warning: LOOK MA! I'M DOING RUST!!!! (Rust learning project)
 
 ## Running
 
