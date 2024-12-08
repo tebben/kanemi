@@ -18,6 +18,7 @@
 //! - `GEO_PIXEL_SIZE_X`: 1.000003457069397
 //! - `GEO_PIXEL_SIZE_Y`: 1.000004768371582
 
+use super::errors::ProjectionError;
 use once_cell::sync::Lazy;
 use proj4rs;
 use proj4rs::proj::Proj;
@@ -56,24 +57,11 @@ static PROJ_KNMI: Lazy<Proj> = Lazy::new(|| {
     .unwrap()
 });
 
-/// Errors that can occur during the coordinate projection process.
-#[derive(Debug)]
-pub enum ProjectionError {
-    /// The input coordinates are outside the valid grid boundaries.
-    OutOfBounds,
-    /// An error occurred during the coordinate transformation.
-    CoordinateError,
-}
-
-/// Converts longitude and latitude coordinates to the HDF5 nowcast grid.
+/// Converts longitude and latitude coordinates to the HDF5 nowcast grid and returns the grid indices.
 ///
 /// # Arguments
-/// - `lon`: Longitude in degrees.
-/// - `lat`: Latitude in degrees.
-///
-/// # Returns
-/// A `Result` containing a tuple of `(col, row)` representing the grid column and row indices
-/// or a `ProjectionError` if the transformation fails or coordinates are out of bounds.
+/// - `longitude`: Longitude in degrees.
+/// - `latitude`: Latitude in degrees.
 ///
 /// # Errors
 /// - `ProjectionError::CoordinateError`: If the coordinate transformation fails.
@@ -89,12 +77,14 @@ pub enum ProjectionError {
 ///     Err(e) => println!("Error: {:?}", e),
 /// }
 /// ```
-pub fn lon_lat_to_grid(lon: f64, lat: f64) -> Result<(u16, u16), ProjectionError> {
-    let mut coordinate = (lon.to_radians(), lat.to_radians(), 0.0);
+pub fn lon_lat_to_grid(longitude: f64, latitude: f64) -> Result<(u16, u16), ProjectionError> {
+    let mut coordinate = (longitude.to_radians(), latitude.to_radians(), 0.0);
 
     let test = proj4rs::transform::transform(&PROJ_4326, &PROJ_KNMI, &mut coordinate);
     if let Err(_) = test {
-        return Err(ProjectionError::CoordinateError);
+        return Err(ProjectionError::CoordinateError(
+            "Coordinate transformation failed".to_string(),
+        ));
     }
 
     // Calculate and round to the nearest integer
@@ -103,7 +93,9 @@ pub fn lon_lat_to_grid(lon: f64, lat: f64) -> Result<(u16, u16), ProjectionError
 
     // Check bounds
     if col < 0.0 || col > GEO_NUMBER_OF_COLUMNS || row < 0.0 || row > GEO_NUMBER_OF_ROWS {
-        return Err(ProjectionError::OutOfBounds);
+        return Err(ProjectionError::OutOfBounds(
+            "Coordinates are outside the valid grid boundaries".to_string(),
+        ));
     }
 
     Ok((col as u16, row as u16))
@@ -136,25 +128,25 @@ mod tests {
         // Test going out of bounds by supplying coordinates outside the bbox
         assert!(matches!(
             lon_lat_to_grid(-1.0, 49.3620).unwrap_err(),
-            ProjectionError::OutOfBounds
+            ProjectionError::OutOfBounds(_)
         ));
         assert!(matches!(
             lon_lat_to_grid(0.0, 48.362064).unwrap_err(),
-            ProjectionError::OutOfBounds
+            ProjectionError::OutOfBounds(_)
         ));
         assert!(matches!(
             lon_lat_to_grid(0.0, 56.973602).unwrap_err(),
-            ProjectionError::OutOfBounds
+            ProjectionError::OutOfBounds(_)
         ));
         assert!(matches!(
             lon_lat_to_grid(11.856452941, 55.388973236).unwrap_err(),
-            ProjectionError::OutOfBounds
+            ProjectionError::OutOfBounds(_)
         ));
 
         // Test going out of bounds by supplying invalid EPSG:4326 coordinates
         assert!(matches!(
             lon_lat_to_grid(-10000000.01, 5000000000.0).unwrap_err(),
-            ProjectionError::CoordinateError
+            ProjectionError::CoordinateError(_)
         ));
     }
 }
