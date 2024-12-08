@@ -80,8 +80,8 @@ static PROJ_KNMI: Lazy<Proj> = Lazy::new(|| {
 pub fn lon_lat_to_grid(longitude: f64, latitude: f64) -> Result<(u16, u16), ProjectionError> {
     let mut coordinate = (longitude.to_radians(), latitude.to_radians(), 0.0);
 
-    let test = proj4rs::transform::transform(&PROJ_4326, &PROJ_KNMI, &mut coordinate);
-    if let Err(_) = test {
+    let proj_result = proj4rs::transform::transform(&PROJ_4326, &PROJ_KNMI, &mut coordinate);
+    if let Err(_) = proj_result {
         return Err(ProjectionError::CoordinateError(
             "Coordinate transformation failed".to_string(),
         ));
@@ -101,9 +101,60 @@ pub fn lon_lat_to_grid(longitude: f64, latitude: f64) -> Result<(u16, u16), Proj
     Ok((col as u16, row as u16))
 }
 
+/// Returns the longitude and latitude coordinates for the given grid indices.
+/// There maybe some offset in the resulting coordinates due to the projection.
+/// The offset is not yet investigated.
+/// ToDo: Investigate the offset and adjust the result accordingly, use rust-decimal?
+///
+/// # Errors
+/// - `ProjectionError::CoordinateError`: If the coordinate transformation fails.
+/// - `ProjectionError::OutOfBounds`: If the grid coordinates are outside the valid range.
+pub fn grid_to_lon_lat(col: u16, row: u16) -> Result<(f64, f64), ProjectionError> {
+    if col > GEO_NUMBER_OF_COLUMNS as u16 || row > GEO_NUMBER_OF_ROWS as u16 {
+        return Err(ProjectionError::OutOfBounds(
+            "Grid coordinates are outside the valid grid boundaries".to_string(),
+        ));
+    }
+
+    let row = -GEO_ROW_OFFSET - row as f64;
+    let mut coordinate = (col as f64, row as f64, 0.0);
+
+    let proj_result = proj4rs::transform::transform(&PROJ_KNMI, &PROJ_4326, &mut coordinate);
+    if let Err(_) = proj_result {
+        return Err(ProjectionError::CoordinateError(
+            "Coordinate transformation failed".to_string(),
+        ));
+    }
+
+    Ok((coordinate.0.to_degrees(), coordinate.1.to_degrees()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_grid_to_lon_lat() {
+        // there maybe some float precision error test with a margin of 0.001 error
+        let margin = 0.0005;
+
+        let (lon, lat) = grid_to_lon_lat(0, 0).unwrap();
+        assert!((lon - GEO_TOP_LEFT.0).abs() < margin);
+        assert!((lat - GEO_TOP_LEFT.1).abs() < margin);
+
+        let (lon, lat) = grid_to_lon_lat(0, GEO_NUMBER_OF_ROWS as u16).unwrap();
+        assert!((lon - GEO_BOTTOM_LEFT.0).abs() < margin);
+        assert!((lat - GEO_BOTTOM_LEFT.1).abs() < margin);
+
+        let (lon, lat) = grid_to_lon_lat(GEO_NUMBER_OF_COLUMNS as u16, 0).unwrap();
+        assert!((lon - GEO_TOP_RIGHT.0).abs() < margin);
+        assert!((lat - GEO_TOP_RIGHT.1).abs() < margin);
+
+        let (lon, lat) =
+            grid_to_lon_lat(GEO_NUMBER_OF_COLUMNS as u16, GEO_NUMBER_OF_ROWS as u16).unwrap();
+        assert!((lon - GEO_BOTTOM_RIGHT.0).abs() < margin);
+        assert!((lat - GEO_BOTTOM_RIGHT.1).abs() < margin);
+    }
 
     #[test]
     fn test_lon_lat_to_grid() {
