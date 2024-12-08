@@ -28,6 +28,23 @@ I have no idea which data those services are using, this is not clear from their
 
 This is my first venture into rust so it's probably not great. I'm open to suggestions and PRs. But I'm also lazy so I might not do anything with them.
 
+## Features
+
+- Fetch latest file from KNMI Data Platform
+- Load dataset from file
+- Projection conversion between the HDF5 grid and EPSG:4326 (both directions)
+- Read image data and their time attribute
+- Get pixel values and mm/hr for a specific location (xy/lonlat)
+- Simple CLI tool for demonstration
+
+## Roadmap
+
+- Full fletched CLI tool to do more stuff
+- Live dataset manager to keep up to date trough KNMI MQTT service
+- TUI tool to visualize the forecast (with live updates)
+- Web server to provide the forecast data as a service
+- Export GeoTIFF files
+
 ## Prerequisites
 
 ### HDF5
