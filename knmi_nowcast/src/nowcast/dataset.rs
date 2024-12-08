@@ -117,6 +117,8 @@ impl Dataset {
 
 #[cfg(test)]
 mod tests {
+    use crate::nowcast::projection;
+
     use super::*;
 
     #[test]
@@ -151,11 +153,25 @@ mod tests {
         let dataset = Dataset::new("../example_data/example.hdf5".to_string()).unwrap();
         let image = dataset.read_image(1).unwrap();
 
+        // Known by inspection this holds value 5
+        let grid_x = 20;
+        let grid_y = 430;
+
+        // get lon and lat from the grid position
+        let (lon, lat) = projection::grid_to_lon_lat(grid_x, grid_y).unwrap();
+
+        // Check if the date time is correct
         assert_eq!(image.datetime, "04-DEC-2024;20:15:00.000");
-        assert_eq!(image.get_value_at_position(20, 430).unwrap(), 5);
+
+        // Check if the value at the grid position is correct
         assert_eq!(
-            image.get_value_at_lon_lat(4.43, 52.324234).unwrap(),
-            Some(5)
+            image
+                .get_value_at_position(grid_x as usize, grid_y as usize)
+                .unwrap(),
+            5
         );
+
+        // Check if the same value is returned when using lon and lat
+        assert_eq!(image.get_value_at_lon_lat(lon, lat).unwrap(), Some(5));
     }
 }
