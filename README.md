@@ -18,6 +18,16 @@ The goal is to provide a library to fetch and work with the KNMI nowcast precipi
 - "Knmi-nowcast: Finally, a way to make precipitation predictions as accurate as flipping a coin." - NotImpressed44
 - "LET'S GO!!! PRICIPITATION FORECASTING WITH KNMI-NOWCAST, BABY!!!" - SteveBall
 
+## Not frequently asked questions
+
+### Is the KNMI nowcast precipitation forecast better than buienradar/buienalarm?
+
+I have no idea which data those services are using, this is not clear from their websites. If you have a rain sensor in your backyard you can measure and let me know.
+
+### What is the quality of the code?
+
+This is my first venture into rust so it's probably not great. I'm open to suggestions and PRs. But I'm also lazy so I might not do anything with them.
+
 ## Prerequisites
 
 ### HDF5
