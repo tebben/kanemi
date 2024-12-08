@@ -5,6 +5,7 @@ use ndarray::{ArrayBase, Ix2, OwnedRepr};
 /// Represents a single image in the nowcast dataset.
 /// The image contains the pixel data and the datetime of the image.
 /// The pixel data is stored as a 2D array of u16 values.
+#[derive(Debug)]
 pub struct Image {
     pub data: ArrayBase<OwnedRepr<u16>, Ix2>,
     pub datetime: String,
