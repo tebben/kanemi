@@ -27,7 +27,7 @@ const CALIBRATION_FACTOR: f64 = 0.01;
 /// let mm_hr = pixel_to_mm_hr(31);
 /// let mm_hr = pixel_to_mm_hr(0);
 /// ```
-pub fn pixel_to_mm_hr(value: u8) -> f64 {
+pub fn pixel_to_mm_hr(value: u16) -> f64 {
     let result = (value as f64 * CALIBRATION_FACTOR) * 12.0;
     (result * 100.0).round() / 100.0
 }

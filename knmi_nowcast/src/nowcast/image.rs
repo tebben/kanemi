@@ -43,9 +43,8 @@ impl Image {
 
 #[cfg(test)]
 mod tests {
-    use crate::nowcast::transformation;
-
     use super::*;
+    use crate::nowcast::transformation;
 
     #[test]
     fn test_get_value_at_position() {

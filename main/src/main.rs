@@ -1,7 +1,8 @@
 use dotenv::dotenv;
-use knmi_nowcast::dataplatform::api::OpenDataAPI;
-use knmi_nowcast::nowcast::projection::lon_lat_to_grid;
-use knmi_nowcast::nowcast::transformation::pixel_to_mm_hr;
+use knmi_nowcast::{
+    dataplatform::api::OpenDataAPI,
+    nowcast::{dataset, transformation::pixel_to_mm_hr},
+};
 use std::env;
 
 #[tokio::main]
@@ -16,52 +17,69 @@ async fn main() {
         api_key,
     );
 
-    match oda.get_latest_files(1).await {
-        Ok(response) => {
-            println!("Files: {:?}", response.files);
-
-            if response.files.len() > 0 {
-                let filename = &response.files[0].filename;
-                get_download_url(&oda, filename).await;
-            }
-        }
-        Err(e) => {
-            eprintln!("Error: {}", e);
-        }
+    // get latest filename
+    let latest_files = oda.get_latest_files(1).await;
+    if let Err(e) = latest_files {
+        eprintln!("Error: {}", e);
+        return;
     }
 
-    test_lon_lat_to_grid();
-    test_pixel_to_mm_hr();
-}
+    let latest_files = latest_files.unwrap();
+    if latest_files.files.len() != 1 {
+        eprintln!("Error: No files found");
+        return;
+    }
 
-async fn get_download_url(oda: &OpenDataAPI, filename: &str) {
-    match oda.get_download_url(filename).await {
-        Ok(response) => {
-            if let Err(e) = oda
-                .download_file(&response.temporary_download_url, "test.hdf5")
-                .await
-            {
-                eprintln!("Error: {}", e);
-            }
-        }
-        Err(e) => {
+    let filename = &latest_files.files[0].filename;
+
+    // get download url
+    let download_url = oda.get_download_url(filename).await;
+    if let Err(e) = download_url {
+        eprintln!("Error: {}", e);
+        return;
+    }
+
+    let download_url = download_url.unwrap();
+
+    // download file
+    let download = oda
+        .download_file(&download_url.temporary_download_url, filename)
+        .await;
+    if let Err(e) = download {
+        eprintln!("Error: {}", e);
+        return;
+    }
+
+    println!("Downloaded file: {}", filename);
+
+    let dataset = dataset::Dataset::new(filename.clone());
+    if let Err(e) = dataset {
+        eprintln!("Error: {}", e);
+        return;
+    }
+
+    let dataset = dataset.unwrap();
+    let longitude = 4.913034;
+    let latitude = 52.342332;
+
+    // loop over images 1 to 25 and store datetime and mm/h values to print later
+    let mut values = Vec::new();
+    for i in 1..26 {
+        let image = dataset.read_image(i);
+        if let Err(e) = image {
             eprintln!("Error: {}", e);
             return;
         }
+
+        let image = image.unwrap();
+        let value = image.get_value_at_lon_lat(longitude, latitude).unwrap();
+        let mm_per_hour = pixel_to_mm_hr(value.unwrap());
+        values.push((image.datetime, mm_per_hour));
     }
-}
 
-fn test_lon_lat_to_grid() {
-    // Test the corners of the grid
-    assert_eq!(lon_lat_to_grid(4.9, 52.3).unwrap(), (0, 0));
-    assert_eq!(lon_lat_to_grid(5.0, 52.3).unwrap(), (1, 0));
-    assert_eq!(lon_lat_to_grid(4.9, 52.4).unwrap(), (0, 1));
-    assert_eq!(lon_lat_to_grid(5.0, 52.4).unwrap(), (1, 1));
-}
+    println!("Values for lon: {}, lat: {}", longitude, latitude);
 
-fn test_pixel_to_mm_hr() {
-    assert_eq!(pixel_to_mm_hr(0), 0.0);
-    assert_eq!(pixel_to_mm_hr(113), 0.0);
-    assert_eq!(pixel_to_mm_hr(114), 0.25);
-    assert_eq!(pixel_to_mm_hr(255), 50.0);
+    for (datetime, value) in values {
+        println!("{} - {} mm/h", datetime, value);
+    }
 }
