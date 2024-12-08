@@ -1,3 +1,7 @@
+<p align="center" style="width: 100%;background-color: hotpink;">
+  <img height="128" src="https://github.com/tebben/knmi-nowcast/blob/main/static/logo.png?raw=true">
+</p>
+
 # knmi-nowcast
 
 Nowcast precipitation forecast up to 2 hours ahead, per 5 minutes, over the Netherlands. The forecast contains 25 time steps: +0 minutes to +120 minutes. Forecasted is the precipitation sum per 5 minutes, on a grid of 1x1 km. The forecast is made with an operational KNMI implementation of pySTEPS. The forecast is initiated with the KNMI 5-minute real-time precipitation accumulation product: RTCOR-5m.
