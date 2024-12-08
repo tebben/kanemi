@@ -38,7 +38,7 @@ impl OpenDataAPI {
         (url, query_params)
     }
 
-    fn get_file_download_url(&self, filename: &str) -> String {
+    fn get_file_download_url(&self, filename: String) -> String {
         format!(
             "{}/datasets/{}/versions/{}/files/{}/url",
             &self.base_url, &self.dataset_name, &self.version, filename
@@ -47,7 +47,7 @@ impl OpenDataAPI {
 
     fn create_get_request(
         &self,
-        url: &str,
+        url: String,
         query_params: Option<&[(&str, String); 3]>,
     ) -> reqwest::RequestBuilder {
         let client = Client::new();
@@ -63,7 +63,7 @@ impl OpenDataAPI {
     pub async fn get_latest_files(&self, max_files: i8) -> Result<FilesResponse, reqwest::Error> {
         let (url, query_params) = self.get_latest_file_url_and_params(max_files);
         let response = self
-            .create_get_request(&url, Some(&query_params))
+            .create_get_request(url, Some(&query_params))
             .send()
             .await?;
 
@@ -74,9 +74,9 @@ impl OpenDataAPI {
     }
 
     // This function returns the download URL for a given file
-    pub async fn get_download_url(&self, filename: &str) -> Result<UrlResponse, reqwest::Error> {
+    pub async fn get_download_url(&self, filename: String) -> Result<UrlResponse, reqwest::Error> {
         let url = self.get_file_download_url(filename);
-        let response = self.create_get_request(&url, None).send().await?;
+        let response = self.create_get_request(url, None).send().await?;
 
         response.error_for_status_ref()?;
 
@@ -85,7 +85,11 @@ impl OpenDataAPI {
     }
 
     // This function downloads a file from a given URL and saves it to the output path
-    pub async fn download_file(&self, url: &str, output_path: &str) -> Result<(), Box<dyn Error>> {
+    pub async fn download_file(
+        &self,
+        url: String,
+        output_path: String,
+    ) -> Result<(), Box<dyn Error>> {
         let client = Client::new();
         let response = client.get(url).send().await?;
 
