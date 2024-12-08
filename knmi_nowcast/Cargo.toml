@@ -20,3 +20,4 @@ hdf5 = { package = "hdf5-metno", version = "0.9.0" }
 ndarray = "0.16.1"
 proj4rs = "0.1.5"
 once_cell = "1.20.2"
+chrono = "0.4.38"

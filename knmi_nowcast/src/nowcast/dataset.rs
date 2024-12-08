@@ -1,5 +1,6 @@
 use super::errors::DatasetError;
 use super::image::Image;
+use super::transformation::convert_hdf5_datetime;
 use hdf5::types::FixedAscii;
 use hdf5::File;
 use hdf5::Group;
@@ -68,8 +69,9 @@ impl Dataset {
         let datetime = self.get_image_datetime(&group_img)?;
         let img_data = self.get_image_data(&group_img)?;
 
+        let datetime = convert_hdf5_datetime(datetime.as_str().to_string()).unwrap();
         // create the Image struct
-        let image = Image::new(img_data, datetime.as_str().to_string());
+        let image = Image::new(img_data, datetime);
         Ok(image)
     }
 
@@ -117,9 +119,9 @@ impl Dataset {
 
 #[cfg(test)]
 mod tests {
-    use crate::nowcast::projection;
-
     use super::*;
+    use crate::nowcast::projection;
+    use chrono::*;
 
     #[test]
     fn test_file_not_found() {
@@ -161,7 +163,13 @@ mod tests {
         let (lon, lat) = projection::grid_to_lon_lat(grid_x, grid_y).unwrap();
 
         // Check if the date time is correct
-        assert_eq!(image.datetime, "04-DEC-2024;20:15:00.000");
+        assert_eq!(
+            image.datetime,
+            NaiveDate::from_ymd_opt(2024, 12, 4)
+                .unwrap()
+                .and_hms_opt(20, 15, 0)
+                .unwrap()
+        );
 
         // Check if the value at the grid position is correct
         assert_eq!(

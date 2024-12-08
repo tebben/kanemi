@@ -1,5 +1,6 @@
 use super::errors::ProjectionError;
 use super::projection::lon_lat_to_grid;
+use chrono::NaiveDateTime;
 use ndarray::{ArrayBase, Ix2, OwnedRepr};
 
 /// Represents a single image in the nowcast dataset.
@@ -8,12 +9,12 @@ use ndarray::{ArrayBase, Ix2, OwnedRepr};
 #[derive(Debug)]
 pub struct Image {
     pub data: ArrayBase<OwnedRepr<u16>, Ix2>,
-    pub datetime: String,
+    pub datetime: NaiveDateTime,
 }
 
 impl Image {
     /// Constructs a new Image with the given pixel data and datetime.
-    pub fn new(data: ArrayBase<OwnedRepr<u16>, Ix2>, datetime: String) -> Image {
+    pub fn new(data: ArrayBase<OwnedRepr<u16>, Ix2>, datetime: NaiveDateTime) -> Image {
         Image { data, datetime }
     }
 
@@ -42,6 +43,8 @@ impl Image {
 
 #[cfg(test)]
 mod tests {
+    use crate::nowcast::transformation;
+
     use super::*;
 
     #[test]
@@ -55,7 +58,9 @@ mod tests {
         }
 
         let img_data = ArrayBase::from_shape_vec((765, 700), data).unwrap();
-        let datetime = "1996-01-01T12:00:00".to_string();
+        let datetime = "01-JAN-2021;20:15:00.000".to_string();
+
+        let datetime = transformation::convert_hdf5_datetime(datetime).unwrap();
         let image = Image::new(img_data, datetime);
 
         // test the corners of the image
