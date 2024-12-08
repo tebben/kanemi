@@ -43,3 +43,35 @@ sudo apt install libhdf5-dev
 To fetch the nowcast data, you need an API key from the KNMI. You can find more information [here](https://developer.dataplatform.knmi.nl/open-data-api#token). An anonymous key is available on the previous mentioned page aswell.
 
 Place the API key in a file called `.env` in the root of the project, see `.env.example` for an example.
+
+## CLI Tool
+
+For now there is only a small example to get the precipitation forecast for a specific location.
+
+```bash
+A CLI tool to get KNMI precipitation forecasts
+
+Usage: knmi-cli [OPTIONS] --api-key <API_KEY> --location <LOCATION>
+
+Options:
+  -a, --api-key <API_KEY>        API Key for accessing the service [env: KNMI_API_KEY=]
+  -l, --location <LOCATION>      Location as a comma-separated string "longitude,latitude" [env: KNMI_LOCATION=]
+  -o, --output-dir <OUTPUT_DIR>  Output directory for storing downloaded files [env: KNMI_OUTPUT_DIR=] [default: ./output]
+  -i, --input-file <INPUT_FILE>  Input file to load, new file will be downloaded if not provided [env: KNMI_INPUT_FILE=]
+  -h, --help                     Print help
+  -V, --version                  Print version
+```
+
+### Running the CLI
+
+This will download the latest forecast and return the precipitation forecast for the given location.
+
+```bash
+cargo run -- --api-key <your-api-key> --location "<longitude>,<latitude>"
+```
+
+### Building the CLI
+
+```bash
+cargo build --release
+```
