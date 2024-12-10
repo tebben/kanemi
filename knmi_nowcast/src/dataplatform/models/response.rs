@@ -28,3 +28,25 @@ pub struct UrlResponse {
     pub size: String,
     pub temporary_download_url: String,
 }
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationData {
+    pub dataset_name: String,
+    pub dataset_version: String,
+    pub filename: String,
+    pub url: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationReponse {
+    pub specversion: String,
+    #[serde(rename = "type")]
+    pub notification_type: String,
+    pub source: String,
+    pub id: String,
+    pub time: String,
+    pub datacontenttype: String,
+    pub data: NotificationData,
+}

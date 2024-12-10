@@ -1,32 +1,30 @@
+use super::errors::ApiError;
+use super::models;
+use models::config::DatasetConfig;
 use models::response::*;
 use reqwest::Client;
-use std::error::Error;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 
-use super::models;
-
 pub struct OpenDataAPI {
     base_url: String,
-    dataset_name: String,
-    version: String,
+    dataset_config: DatasetConfig,
     api_key: String,
 }
 
 impl OpenDataAPI {
-    pub fn new(base_url: String, dataset_name: String, version: String, api_key: String) -> Self {
+    pub fn new(base_url: String, api_key: String, dataset_config: DatasetConfig) -> Self {
         OpenDataAPI {
             base_url,
-            dataset_name,
-            version,
             api_key,
+            dataset_config,
         }
     }
 
     fn get_latest_file_url_and_params(&self, max_files: i8) -> (String, [(&str, String); 3]) {
         let url = format!(
             "{}/datasets/{}/versions/{}/files",
-            &self.base_url, &self.dataset_name, &self.version
+            &self.base_url, &self.dataset_config.dataset_name, &self.dataset_config.version
         );
 
         let query_params = [
@@ -41,7 +39,10 @@ impl OpenDataAPI {
     fn get_file_download_url(&self, filename: String) -> String {
         format!(
             "{}/datasets/{}/versions/{}/files/{}/url",
-            &self.base_url, &self.dataset_name, &self.version, filename
+            &self.base_url,
+            &self.dataset_config.dataset_name,
+            &self.dataset_config.version,
+            filename
         )
     }
 
@@ -60,46 +61,69 @@ impl OpenDataAPI {
     }
 
     // This function returns the latest file from the dataset
-    pub async fn get_latest_files(&self, max_files: i8) -> Result<FilesResponse, reqwest::Error> {
+    pub async fn get_latest_files(&self, max_files: i8) -> Result<FilesResponse, ApiError> {
         let (url, query_params) = self.get_latest_file_url_and_params(max_files);
         let response = self
             .create_get_request(url, Some(&query_params))
             .send()
-            .await?;
+            .await
+            .map_err(|e| ApiError::FetchError(e.to_string()))?;
 
-        response.error_for_status_ref()?;
+        let data: FilesResponse = response
+            .json()
+            .await
+            .map_err(|e| ApiError::FilesResponseParseError(e.to_string()))?;
 
-        let json: FilesResponse = response.json().await?;
-        Ok(json)
+        Ok(data)
     }
 
     // This function returns the download URL for a given file
-    pub async fn get_download_url(&self, filename: String) -> Result<UrlResponse, reqwest::Error> {
+    pub async fn get_download_url(&self, filename: String) -> Result<UrlResponse, ApiError> {
         let url = self.get_file_download_url(filename);
-        let response = self.create_get_request(url, None).send().await?;
+        let response = self
+            .create_get_request(url, None)
+            .send()
+            .await
+            .map_err(|e| ApiError::FetchError(e.to_string()))?;
 
-        response.error_for_status_ref()?;
+        let data: UrlResponse = response
+            .json()
+            .await
+            .map_err(|e| ApiError::UrlResponseParseError(e.to_string()))?;
 
-        let data: UrlResponse = response.json().await?;
         Ok(data)
     }
 
     // This function downloads a file from a given URL and saves it to the output path
-    pub async fn download_file(
-        &self,
-        url: String,
-        output_path: String,
-    ) -> Result<(), Box<dyn Error>> {
+    pub async fn download_file(&self, url: String, output_path: String) -> Result<(), ApiError> {
         let client = Client::new();
-        let response = client.get(url).send().await?;
+        let response = client
+            .get(url)
+            .send()
+            .await
+            .map_err(|e| ApiError::FetchError(e.to_string()))?;
 
         if response.status().is_success() {
-            let mut file = File::create(output_path).await?;
-            let content = response.bytes().await?;
-            file.write_all(&content).await?;
+            let mut file = File::create(output_path)
+                .await
+                .map_err(|e| ApiError::SaveFileError(e.to_string()))?;
+
+            let content = response
+                .bytes()
+                .await
+                .map_err(|e| ApiError::FetchError(e.to_string()))?;
+
+            let write = file.write_all(&content).await;
+            if write.is_err() {
+                return Err(ApiError::SaveFileError(write.err().unwrap().to_string()));
+            }
+
             Ok(())
         } else {
-            Err("Failed to download file".into())
+            Err(ApiError::FetchError(format!(
+                "Failed to download file: {}",
+                response.status()
+            )))
         }
     }
 }
