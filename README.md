@@ -36,14 +36,20 @@ This is my first venture into rust so it's probably not great. I'm open to sugge
 - Read image data and their time attribute
 - Get pixel values and mm/hr for a specific location (xy/lonlat)
 - Simple CLI tool for demonstration
+- Notifications for dataset updates trough KNMI notifications server
 
 ## Roadmap
 
-- Full fletched CLI tool to do more stuff
-- Live dataset manager to keep up to date trough KNMI MQTT service
-- TUI tool to visualize the forecast (with live updates)
+- CLI tool
+  - Static link the HDF5 library
+  - command: forecast
+    - format [json, csv, parquet]
+  - command: convert
+    - format [csv, geotiff, parquet]
+  - command: tui
+    - Graph with live updates
 - Web server to provide the forecast data as a service
-- Export GeoTIFF files
+- Converters for other formats
 
 ## Prerequisites
 
@@ -57,26 +63,30 @@ sudo apt install libhdf5-dev
 
 ### KNMI API key
 
+#### Open Data API
 To fetch the nowcast data, you need an API key from the KNMI. You can find more information [here](https://developer.dataplatform.knmi.nl/open-data-api#token). An anonymous key is available on the previous mentioned page aswell.
 
-Place the API key in a file called `.env` in the root of the project, see `.env.example` for an example.
+#### Notifications
+
+For the notifications service a different API key is needed and can be requested like the Open Data API key. Place this key in the `.env` file aswell.
 
 ## CLI Tool
 
-For now there is only a small example to get the precipitation forecast for a specific location.
+For now the CLI only contains 2 simple test commands to test the notification service and to get the precipitation forecast. Every command accepts it's own set of args, check the args with the `--help` flag on an option. `cargo run -- forecase --help` for example. All args can also be set using environment variables trough the system or a `.env` file.
 
 ```bash
 A CLI tool to get KNMI precipitation forecasts
 
-Usage: knmi-cli [OPTIONS] --api-key <API_KEY> --location <LOCATION>
+Usage: knmi-cli <COMMAND>
+
+Commands:
+  forecast       Print the precipitation forecast from input file or a newly downloaded KNMI dataset
+  notifications  Test the notification service
+  help           Print this message or the help of the given subcommand(s)
 
 Options:
-  -a, --api-key <API_KEY>        API Key for accessing the service [env: KNMI_API_KEY=]
-  -l, --location <LOCATION>      Location as a comma-separated string "longitude,latitude" [env: KNMI_LOCATION=]
-  -o, --output-dir <OUTPUT_DIR>  Output directory for storing downloaded files [env: KNMI_OUTPUT_DIR=] [default: ./output]
-  -i, --input-file <INPUT_FILE>  Input file to load, new file will be downloaded if not provided [env: KNMI_INPUT_FILE=]
-  -h, --help                     Print help
-  -V, --version                  Print version
+  -h, --help     Print help
+  -V, --version  Print version
 ```
 
 ### Running the CLI
@@ -84,7 +94,7 @@ Options:
 This will download the latest forecast and return the precipitation forecast for the given location.
 
 ```bash
-cargo run -- --api-key <your-api-key> --location "<longitude>,<latitude>"
+cargo run -- forecast -a <your-api-key> -l "<longitude>,<latitude>"
 ```
 
 ### Building the CLI
