@@ -9,7 +9,7 @@ edition = "2021"
 knmi_nowcast = { path = "../knmi_nowcast" }
 tokio = { version = "1.42.0", features = ["full"] }
 dotenv = "0.15"
-clap = { version = "4.0", features = ["derive", "env"] }
+clap = { version = "4.5.23", features = ["derive", "env"] }
 
 [profile.release]
 opt-level = 3   # Full optimization for performance
