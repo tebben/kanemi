@@ -81,7 +81,7 @@ pub fn lon_lat_to_grid(longitude: f64, latitude: f64) -> Result<(u16, u16), Proj
     let mut coordinate = (longitude.to_radians(), latitude.to_radians(), 0.0);
 
     let proj_result = proj4rs::transform::transform(&PROJ_4326, &PROJ_KNMI, &mut coordinate);
-    if let Err(_) = proj_result {
+    if proj_result.is_err() {
         return Err(ProjectionError::CoordinateError(
             "Coordinate transformation failed".to_string(),
         ));
@@ -92,7 +92,7 @@ pub fn lon_lat_to_grid(longitude: f64, latitude: f64) -> Result<(u16, u16), Proj
     let row = (-GEO_ROW_OFFSET - coordinate.1).round();
 
     // Check bounds
-    if col < 0.0 || col > GEO_NUMBER_OF_COLUMNS || row < 0.0 || row > GEO_NUMBER_OF_ROWS {
+    if !(0.0..=GEO_NUMBER_OF_COLUMNS).contains(&col) || !(0.0..=GEO_NUMBER_OF_ROWS).contains(&row) {
         return Err(ProjectionError::OutOfBounds(
             "Coordinates are outside the valid grid boundaries".to_string(),
         ));
@@ -117,10 +117,10 @@ pub fn grid_to_lon_lat(col: u16, row: u16) -> Result<(f64, f64), ProjectionError
     }
 
     let row = -GEO_ROW_OFFSET - row as f64;
-    let mut coordinate = (col as f64, row as f64, 0.0);
+    let mut coordinate = (col as f64, row, 0.0);
 
     let proj_result = proj4rs::transform::transform(&PROJ_KNMI, &PROJ_4326, &mut coordinate);
-    if let Err(_) = proj_result {
+    if proj_result.is_err() {
         return Err(ProjectionError::CoordinateError(
             "Coordinate transformation failed".to_string(),
         ));

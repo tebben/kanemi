@@ -36,7 +36,7 @@ impl Dataset {
         }
 
         Ok(Dataset {
-            filepath: filepath,
+            filepath,
             hdf5_file: hdf5_file.unwrap(),
             image_count: 25,
         })
@@ -59,7 +59,7 @@ impl Dataset {
         let group_img = self
             .hdf5_file
             .group(format!("image{}", image_index).as_str());
-        if let Err(_) = group_img {
+        if group_img.is_err() {
             return Err(DatasetError::ReadError(
                 "Error reading image group".to_string(),
             ));
@@ -77,7 +77,7 @@ impl Dataset {
 
     fn get_image_datetime(&self, group: &Group) -> Result<String, DatasetError> {
         let attribute_datetime = group.attr("image_datetime_valid");
-        if let Err(_) = attribute_datetime {
+        if attribute_datetime.is_err() {
             return Err(DatasetError::ReadError(
                 "Error reading datetime attribute".to_string(),
             ));
@@ -85,7 +85,7 @@ impl Dataset {
 
         let attribute_datetime = attribute_datetime.unwrap();
         let datetime = attribute_datetime.read_scalar::<FixedAscii<25>>();
-        if let Err(_) = datetime {
+        if datetime.is_err() {
             return Err(DatasetError::ReadError(
                 "Error reading datetime attribute".to_string(),
             ));
@@ -99,7 +99,7 @@ impl Dataset {
         group: &Group,
     ) -> Result<ArrayBase<OwnedRepr<u16>, Ix2>, DatasetError> {
         let img = group.dataset("image_data");
-        if let Err(_) = img {
+        if img.is_err() {
             return Err(DatasetError::ReadError(
                 "Error reading image data".to_string(),
             ));
@@ -107,7 +107,7 @@ impl Dataset {
 
         let img = img.unwrap();
         let img_data = img.read_2d::<u16>();
-        if let Err(_) = img_data {
+        if img_data.is_err() {
             return Err(DatasetError::ReadError(
                 "Error reading image data".to_string(),
             ));

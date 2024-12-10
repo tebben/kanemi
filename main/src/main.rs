@@ -112,7 +112,7 @@ async fn main() {
 
     // create full path full path is filename if output_dir is not provided
     if !filepath.is_empty() {
-        filepath.push_str("/");
+        filepath.push('/');
     }
     filepath.push_str(filename);
 
@@ -164,7 +164,7 @@ fn load_and_print_data(filename: String, longitude: f64, latitude: f64) {
     let date_time_first = values.first().unwrap().0;
     println!(
         "\x1b[45m\x1b[37m\x1b[1m{} - Precipitation @ {}, {}\x1b[0m",
-        date_time_first.format("%d-%m-%Y").to_string(),
+        date_time_first.format("%d-%m-%Y"),
         longitude,
         latitude
     );
