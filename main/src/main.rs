@@ -4,7 +4,7 @@ mod functions;
 use clap::Parser;
 use cli::{Cli, Commands};
 use dotenv::dotenv;
-use knmi_nowcast::dataplatform::models::config::DatasetConfig;
+use kanemi::dataplatform::models::config::DatasetConfig;
 
 #[tokio::main]
 async fn main() {

@@ -1,5 +1,5 @@
 [package]
-name = "knmi_nowcast"
+name = "kanemi"
 version = "0.1.0"
 authors = ["Tim Ebben"]
 license = "MIT"
@@ -8,7 +8,7 @@ edition = "2021"
 [lib]
 path = "src/lib.rs"
 
-repository = "https://github.com/tebben/knmi-nowcast-precipitation"
+repository = "https://github.com/tebben/kanemi"
 keywords = ["KNMI", "HDF5", "nowcast", "precipitation"]
 
 [dependencies]

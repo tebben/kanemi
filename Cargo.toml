@@ -1,5 +1,5 @@
 [workspace]
 members = [
-    "knmi_nowcast",
+    "kanemi",
     "main",
 ]

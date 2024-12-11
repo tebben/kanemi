@@ -69,7 +69,7 @@ static PROJ_KNMI: Lazy<Proj> = Lazy::new(|| {
 ///
 /// # Examples
 /// ```rust
-/// use knmi_nowcast::nowcast::projection::lon_lat_to_grid;
+/// use kanemi::nowcast::projection::lon_lat_to_grid;
 ///
 /// let result = lon_lat_to_grid(4.9, 52.3);
 /// match result {

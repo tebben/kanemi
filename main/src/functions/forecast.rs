@@ -1,4 +1,4 @@
-use knmi_nowcast::{
+use kanemi::{
     dataplatform::{api::OpenDataAPI, models::config::DatasetConfig},
     nowcast::{dataset, transformation::pixel_to_mm_hr},
 };

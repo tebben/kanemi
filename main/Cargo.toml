@@ -1,12 +1,12 @@
 [package]
-name = "knmi-cli"
+name = "kanecli"
 version = "0.1.0"
 authors = ["Tim Ebben"]
 license = "MIT"
 edition = "2021"
 
 [dependencies]
-knmi_nowcast = { path = "../knmi_nowcast" }
+kanemi = { path = "../kanemi" }
 tokio = { version = "1.42.0", features = ["full"] }
 dotenv = "0.15"
 clap = { version = "4.5.23", features = ["derive", "env"] }

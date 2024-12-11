@@ -1,9 +1,9 @@
 use clap::{Parser, Subcommand};
 
 #[derive(Parser, Debug)]
-#[command(name = "knmi")]
+#[command(name = "kanemi")]
 #[command(version = "1.0")]
-#[command(about = "A CLI tool to get KNMI precipitation forecasts", long_about = None)]
+#[command(about = "A CLI tool to work with KNMI data", long_about = None)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,

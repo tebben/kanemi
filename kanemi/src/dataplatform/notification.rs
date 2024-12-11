@@ -36,7 +36,7 @@ impl NotificationService {
         );
         mqttoptions.set_transport(Transport::Wss(TlsConfiguration::default()));
         mqttoptions.set_keep_alive(Duration::from_secs(5));
-        mqttoptions.set_credentials("knmi-nowcast", &self.mqtt_config.api_key);
+        mqttoptions.set_credentials("kanemi", &self.mqtt_config.api_key);
         mqttoptions.set_clean_session(true);
 
         // Declare eventloop as mutable
