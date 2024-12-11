@@ -1,8 +1,16 @@
+use crate::commands::notifications::NotificationOptions;
 use kanemi::dataplatform::{
     models::config::DatasetConfig, models::config::MqttConfig,
     models::response::NotificationReponse,
 };
 use std::sync::Arc;
+
+pub async fn handle_command(options: NotificationOptions) {
+    let dataset_config = DatasetConfig::new("radar_forecast".to_string(), "2.0".to_string());
+    if let Err(e) = run_notification_test(options.api_key, dataset_config).await {
+        eprintln!("Error: {}", e);
+    }
+}
 
 pub async fn run_notification_test(
     api_key: String,

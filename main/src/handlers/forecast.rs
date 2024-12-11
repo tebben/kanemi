@@ -1,7 +1,22 @@
+use crate::commands::forecast::ForecastOptions;
 use kanemi::{
     dataplatform::{api::OpenDataAPI, models::config::DatasetConfig},
     nowcast::{dataset, transformation::pixel_to_mm_hr},
 };
+
+pub async fn handle_command(options: ForecastOptions) {
+    let dataset_config = DatasetConfig::new("radar_forecast".to_string(), "2.0".to_string());
+    let (longitude, latitude) = options.location;
+    get_forecast(
+        options.api_key,
+        dataset_config,
+        options.input_file,
+        options.output_dir,
+        longitude,
+        latitude,
+    )
+    .await;
+}
 
 pub async fn get_forecast(
     api_key: String,
