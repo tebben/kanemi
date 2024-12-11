@@ -1,12 +1,10 @@
 <p align="center" style="width: 100%;background-color: hotpink;">
-  <img height="128" src="https://github.com/tebben/knmi-nowcast/blob/main/static/logo.png?raw=true">
+  <img height="90" src="https://github.com/tebben/knmi-nowcast/blob/main/static/logo.png?raw=true">
 </p>
-
-# kanemi
 
 The goal with kanemi is to provide a library and tools to work more easily with KNMI data.
 
-> Warning: LOOK MA! I'M DOING RUST!!!!
+> Warning: LOOK MA! I'M DOING RUST!!!! (This repo is a learning project for Rust, no guarantees for the quality)
 
 ## Testimonials
 
@@ -29,7 +27,7 @@ Kanemi tries to provide easy access to the following datasets
 ToDo
 
 ### Meteo data - actual synoptic observations
-
+> kanemi
 ToDo
 
 ## Features
