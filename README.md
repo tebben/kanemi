@@ -47,6 +47,7 @@ ToDo
 - More datasets
 - Webservice
 - Converters
+- Geocoder (PDOK Locatieserver)
 
 ## Prerequisites
 
@@ -72,13 +73,14 @@ For the notifications service a different API key is needed and can be requested
 For now the CLI only contains 2 simple test commands to test the notification service and to get the precipitation forecast. Every command accepts it's own set of args, check the args with the `--help` flag on an option. `cargo run -- forecase --help` for example. All args can also be set using environment variables trough the system or a `.env` file.
 
 ```bash
-A CLI tool to work with KNMI data
+A CLI tool to work with KNMI data and maybe some other stuff
 
-Usage: kanemi <COMMAND>
+Usage: kanecli <COMMAND>
 
 Commands:
   forecast       Print the precipitation forecast from input file or a newly downloaded KNMI dataset
   notifications  Test the notification service
+  geocoder       Geocode or reverse geocode a location using the PDOK Locatieserver
   help           Print this message or the help of the given subcommand(s)
 
 Options:
@@ -92,6 +94,10 @@ This will download the latest forecast and return the precipitation forecast for
 
 ```bash
 cargo run -- forecast -a <your-api-key> -l "<longitude>,<latitude>"
+```
+
+```bash
+cargo run -- geocoder free -q "Amsterdam" --best-match
 ```
 
 ### Building the CLI
