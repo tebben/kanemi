@@ -7,12 +7,16 @@ edition = "2021"
 
 [dependencies]
 kanemi = { path = "../kanemi" }
+pdok_location = { path = "../pdok_location" }
 tokio = { version = "1.42.0", features = ["full"] }
 dotenv = "0.15"
 clap = { version = "4.5.23", features = ["derive", "env"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 
 [profile.release]
-opt-level = 3   # Full optimization for performance
-lto = true      # Link Time Optimization (LTO) to improve binary size and performance
-panic = "abort" # Reduce binary size by not including stack unwinding code
-debug = false   # Disable debug info
+opt-level = 3       # Full optimization for performance
+lto = true          # Link Time Optimization (LTO) to improve binary size and performance
+panic = "abort"     # Reduce binary size by not including stack unwinding code
+debug = false       # Disable debug info
+codegen-units = 1
