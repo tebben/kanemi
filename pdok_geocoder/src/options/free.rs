@@ -5,15 +5,15 @@ pub struct FreeOptions {
     /// only return the best match, example: true
     pub best_match: Option<bool>,
     /// sort results on distance, example: 52.374,4.900
-    pub coordinates: Option<(f64, f64)>,
-    /// fields to return, example: bron,weergavenaam
-    pub fl: Option<String>,
+    pub lonlat: Option<(f64, f64)>,
+    /// fields to return, example: bron, weergavenaam
+    pub fl: Option<Vec<String>>,
     /// filter query, example: bron:BAG, example 2: type:(gemeente OR woonplaats OR weg OR postcode OR adres)
     pub fq: Option<String>,
     /// default search field, example: weergavenaam
     pub df: Option<String>,
-    /// query fields, example: weergavenaam^1.5,straatnaam^1.5
-    pub bq: Option<String>,
+    /// boost fields, example: weergavenaam^1.5,straatnaam^1.5
+    pub bq: Option<Vec<String>>,
     /// start index, default: 0
     pub start: Option<i32>,
     /// number of rows to return, default: 10, max: 100
@@ -27,7 +27,7 @@ impl Default for FreeOptions {
         Self {
             q: String::new(),
             best_match: Some(false),
-            coordinates: None,
+            lonlat: None,
             fl: None,
             fq: None,
             df: None,
@@ -53,17 +53,13 @@ impl FreeOptions {
 
         let mut query = format!("q={}", urlencoding::encode(&self.q));
 
-        if let Some((longitude, latitude)) = self.coordinates {
+        if let Some((longitude, latitude)) = self.lonlat {
             query.push_str(&format!("&lon={}", longitude));
             query.push_str(&format!("&lat={}", latitude));
         }
 
         if let Some(fl) = &options.fl {
-            let fl = if fl.contains(',') {
-                fl.split(',').collect::<Vec<&str>>().join("%2C")
-            } else {
-                fl.clone()
-            };
+            let fl = fl.join("%20");
             query.push_str(&format!("&fl={}", fl));
         }
 
@@ -76,8 +72,7 @@ impl FreeOptions {
         }
 
         if let Some(bq) = &options.bq {
-            // split on comma, every entry needs to be added as &bq=...
-            let bq = bq.split(',').collect::<Vec<&str>>().join("&bq=");
+            let bq = bq.join("&bq=");
             query.push_str(&format!("&bq={}", bq));
         }
 
