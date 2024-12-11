@@ -39,7 +39,7 @@ ToDo
   - Projection conversion between the HDF5 grid and EPSG:4326 (both directions)
   - Read image data and their time attribute
   - Get pixel values and mm/hr for a specific location (xy/lonlat)
-- Simple CLI tool only for demonstration yet
+- Simple CLI tool only for demonstration currently
 
 ## Roadmap
 
@@ -70,7 +70,7 @@ For the notifications service a different API key is needed and can be requested
 
 ## kanecli - CLI Tool
 
-For now the CLI only contains 2 simple test commands to test the notification service and to get the precipitation forecast. Every command accepts it's own set of args, check the args with the `--help` flag on an option. `cargo run -- forecase --help` for example. All args can also be set using environment variables trough the system or a `.env` file.
+For now the CLI only contains 3 simple test commands to test the notification service, get precipitation forecast and geocoding. Every command accepts it's own set of args, check the args with the `--help` flag on an option. `kanecli forecast --help` for example.
 
 ```bash
 A CLI tool to work with KNMI data and maybe some other stuff
@@ -88,16 +88,26 @@ Options:
   -V, --version  Print version
 ```
 
+### Installation
+
+To install kanecli, clone the repository and build the project with cargo. This will install the binary in the cargo bin directory (usually `~/.cargo/bin`).
+
+```bash
+git clone https://github.com/tebben/kanemi.git
+cd kanemi
+cargo install --path main
+```
+
 ### Running the CLI
 
 This will download the latest forecast and return the precipitation forecast for the given location.
 
 ```bash
-cargo run -- forecast -a <your-api-key> -l "<longitude>,<latitude>"
+kanecli forecast -a <your-api-key> -l "<longitude>,<latitude>"
 ```
 
 ```bash
-cargo run -- geocoder free -q "Amsterdam" --best-match
+kanecli geocoder free -q "Amsterdam" --best-match
 ```
 
 ### Building the CLI
