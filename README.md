@@ -27,7 +27,7 @@ Kanemi tries to provide easy access to the following datasets
 ToDo
 
 ### Meteo data - actual synoptic observations
-> kanemi
+
 ToDo
 
 ## Features
