@@ -46,5 +46,15 @@ pub async fn get_free(options: GeocoderOptionsFree) {
         .await
         .unwrap();
 
+    // if best_match is true, only return the first result
+    if free_options.best_match.unwrap_or(false) {
+        if let Some(first) = data.response.docs.first() {
+            println!("{}", serde_json::to_string_pretty(first).unwrap());
+        } else {
+            println!("No results found");
+        }
+        return;
+    }
+
     println!("{}", serde_json::to_string_pretty(&data).unwrap());
 }

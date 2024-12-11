@@ -16,7 +16,7 @@ pub struct GeocoderOptionsFree {
     #[arg(short, long)]
     pub q: String,
 
-    /// Get only the best matchching result
+    /// Get and return only the best match
     #[arg(long)]
     pub best_match: bool,
 
