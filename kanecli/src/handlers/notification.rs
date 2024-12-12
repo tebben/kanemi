@@ -1,6 +1,6 @@
 use crate::commands::notifications::NotificationOptions;
 use kanemi::dataplatform::{
-    models::config::DatasetConfig, models::config::MqttConfig,
+    errors::NotificationError, models::config::DatasetConfig, models::config::MqttConfig,
     models::response::NotificationReponse,
 };
 use std::sync::Arc;
@@ -29,7 +29,13 @@ pub async fn run_notification_test(
         );
     });
 
-    notification_service.start(message_handler).await?;
+    let error_handler = Arc::new(|error: NotificationError| {
+        eprintln!("Error received: {:?}", error);
+    });
+
+    notification_service
+        .start(message_handler, error_handler)
+        .await?;
 
     Ok(())
 }
