@@ -41,12 +41,16 @@ impl fmt::Display for ApiError {
 pub enum NotificationError {
     /// Connection was lost
     ConnectionError(String),
+
+    /// Subscription error
+    SubscriptionError(String),
 }
 
 impl fmt::Display for NotificationError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             NotificationError::ConnectionError(s) => write!(f, "Connection error: {}", s),
+            NotificationError::SubscriptionError(s) => write!(f, "Subscription error: {}", s),
         }
     }
 }

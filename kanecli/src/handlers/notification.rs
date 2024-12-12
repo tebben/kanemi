@@ -4,6 +4,7 @@ use kanemi::dataplatform::{
     models::response::NotificationReponse,
 };
 use std::sync::Arc;
+use uuid::Uuid;
 
 pub async fn handle_command(options: NotificationOptions) {
     let dataset_config = DatasetConfig::new("radar_forecast".to_string(), "2.0".to_string());
@@ -29,12 +30,18 @@ pub async fn run_notification_test(
         );
     });
 
-    let error_handler = Arc::new(|error: NotificationError| {
-        eprintln!("Error received: {:?}", error);
+    let error_handler = Arc::new(|error: NotificationError| match error {
+        NotificationError::SubscriptionError(e) => {
+            eprintln!("{}", e);
+        }
+        NotificationError::ConnectionError(e) => {
+            eprintln!("{}", e);
+        }
     });
 
+    let id = Uuid::new_v4();
     notification_service
-        .start(message_handler, error_handler)
+        .start(id.to_string(), false, message_handler, error_handler)
         .await?;
 
     Ok(())
