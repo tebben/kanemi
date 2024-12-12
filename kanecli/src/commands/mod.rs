@@ -1,3 +1,5 @@
+mod help;
+
 pub mod forecast;
 pub mod geocoder;
 pub mod notifications;

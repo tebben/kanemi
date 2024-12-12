@@ -1,27 +1,18 @@
+use super::help::*;
 use clap::Args;
 
 #[derive(Args, Debug)]
 pub struct ForecastOptions {
-    /// API key for the Open Data API
-    #[arg(short, long, env = "KNMI_API_KEY_OPEN_DATA")]
+    #[arg(short, long, env = "KNMI_API_KEY_OPEN_DATA", help = SHORT_HELP_API_KEY_ODA, long_help = LONG_HELP_API_KEY_ODA)]
     pub api_key: String,
 
-    /// Location as a comma-separated string "longitude,latitude"
-    #[arg(short, long, env = "KNMI_LOCATION", value_parser = parse_location)]
+    #[arg(short, long, env = "KNMI_LOCATION", value_parser = parse_location, help = SHORT_HELP_LOCATION, long_help = LONG_HELP_LOCATION)]
     pub location: (f64, f64),
 
-    /// Output directory for storing downloaded files
-    #[arg(
-        short,
-        long,
-        env = "KNMI_OUTPUT_DIR",
-        required = false,
-        default_value = "./output"
-    )]
+    #[arg(short, long, env = "KNMI_OUTPUT_DIR", required = false, default_value = "./output", help = SHORT_HELP_OUTPUT_DIR, long_help = LONG_HELP_OUTPUT_DIR)]
     pub output_dir: Option<String>,
 
-    /// Input file to load, new file will be downloaded if not provided
-    #[arg(short, long, env = "KNMI_INPUT_FILE", required = false)]
+    #[arg(short, long, env = "KNMI_INPUT_FILE", required = false, help = SHORT_HELP_INPUT_FILE, long_help = LONG_HELP_INPUT_FILE)]
     pub input_file: Option<String>,
 }
 
