@@ -1,9 +1,9 @@
 [workspace]
 resolver = "2"
 members = [
+    "kanecli",
     "kanemi",
     "pdok_geocoder",
-    "main",
 ]
 
 [profile.release]

@@ -95,19 +95,27 @@ To install kanecli, clone the repository and build the project with cargo. This 
 ```bash
 git clone https://github.com/tebben/kanemi.git
 cd kanemi
-cargo install --path main
+cargo install --path kanecli
 ```
 
-### Running the CLI
+### Examples
 
-This will download the latest forecast and return the precipitation forecast for the given location.
+Download the latest forecast and return the precipitation forecast for the given location.
 
 ```bash
 kanecli forecast -a <your-api-key> -l "<longitude>,<latitude>"
 ```
 
+Geocode a location using the PDOK Locatieserver, filter on address type and return only the best match.
+
 ```bash
-kanecli geocoder free -q "Amsterdam" --best-match
+kanecli geocoder free -q "museumstraat 1 Amsterdam" --fq "type:adres" --best-match
+```
+
+Reverse geocode, find the 5 best adres matches for the given lonlat within 15 meters.
+
+```bash
+kanecli geocoder reverse --lonlat "4.887295127944717,52.36849110206849" --rows 5 --distance 15
 ```
 
 ### Building the CLI
