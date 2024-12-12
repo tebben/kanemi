@@ -106,6 +106,12 @@ Download the latest forecast and return the precipitation forecast for the given
 kanecli forecast -a <your-api-key> -l "<longitude>,<latitude>"
 ```
 
+Get notification messages for the dataset radar_forecast version 2.0.
+
+```bash
+kanecli notifications -a <your-api-key> --dataset-name radar_forecast --dataset-version 2.0
+```
+
 Geocode a location using the PDOK Locatieserver, filter on address type and return only the best match.
 
 ```bash

@@ -135,3 +135,14 @@ key for the Notification Service and not for the Open Data API.
 browse to https://developer.dataplatform.knmi.nl/open-data-api#token
 
 Key can be set trough env var KNMI_API_KEY_OPEN_DATA"#;
+
+pub const SHORT_HELP_DATASET_NAME_NOTI: &str = "The name of the dataset to subscribe to";
+pub const SHORT_HELP_DATASET_VERSION_NOTI: &str = "The version of the dataset to subscribe to";
+pub const SHORT_HELP_CLIENT_ID_NOTI: &str = "Unique client id for the notification service";
+pub const LONG_HELP_CLIENT_ID_NOTI: &str = r#"Unique client id for the notification service
+The client identifier is a string that identifies each MQTT client that connects to an MQTT server.
+Each client that connects to the MQTT server must have a unique client id as the server uses it to
+identify the state of the MQTT session between the client and the server. If you try to connect
+with a client id that already has a session present, the old one will be terminated. After a
+disconnect for whatever reason, by reconnecting with the same client ID,
+the session will resume seamlessly and receive missed messages"#;

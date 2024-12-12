@@ -60,7 +60,7 @@ impl OpenDataAPI {
         }
     }
 
-    // This function returns the latest file from the dataset
+    /// Return the latest file from the dataset
     pub async fn get_latest_files(&self, max_files: i8) -> Result<FilesResponse, ApiError> {
         let (url, query_params) = self.get_latest_file_url_and_params(max_files);
         let response = self
@@ -77,7 +77,7 @@ impl OpenDataAPI {
         Ok(data)
     }
 
-    // This function returns the download URL for a given file
+    /// This function returns the download URL for the given file
     pub async fn get_download_url(&self, filename: String) -> Result<UrlResponse, ApiError> {
         let url = self.get_file_download_url(filename);
         let response = self
@@ -94,7 +94,7 @@ impl OpenDataAPI {
         Ok(data)
     }
 
-    // This function downloads a file from a given URL and saves it to the output path
+    /// This function downloads a file from the given URL and saves it to the output path
     pub async fn download_file(&self, url: String, output_path: String) -> Result<(), ApiError> {
         let client = Client::new();
         let response = client

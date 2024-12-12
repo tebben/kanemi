@@ -1,48 +1,77 @@
 use crate::commands::notifications::NotificationOptions;
 use kanemi::dataplatform::{
-    errors::NotificationError, models::config::DatasetConfig, models::config::MqttConfig,
-    models::response::NotificationReponse,
+    errors::NotificationError,
+    models::{
+        config::{DatasetConfig, MqttConfig},
+        response::NotificationReponse,
+    },
 };
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
+#[derive(Debug, Deserialize, Serialize)]
+pub struct NotificationMessage {
+    pub success: bool,
+    pub topic: String,
+    pub data: NotificationReponse,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ErrorMessage {
+    pub success: bool,
+    pub error: String,
+}
+
 pub async fn handle_command(options: NotificationOptions) {
-    let dataset_config = DatasetConfig::new("radar_forecast".to_string(), "2.0".to_string());
-    if let Err(e) = run_notification_test(options.api_key, dataset_config).await {
+    let client_id = if let Some(client_id) = options.client_id {
+        client_id
+    } else {
+        Uuid::new_v4().to_string()
+    };
+
+    let dataset_config = DatasetConfig::new(options.dataset_name, options.dataset_version);
+    if let Err(e) = run(options.api_key, client_id, dataset_config).await {
         eprintln!("Error: {}", e);
     }
 }
 
-pub async fn run_notification_test(
+pub async fn run(
     api_key: String,
+    client_id: String,
     dataset_config: DatasetConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Waiting for notifications...");
-
     let mqtt_config = MqttConfig::new_default(api_key, dataset_config);
     let mut notification_service =
         kanemi::dataplatform::notification::NotificationService::new(mqtt_config);
 
     let message_handler = Arc::new(|topic: String, payload: NotificationReponse| {
-        println!(
-            "Received message on topic '{}': {:?}",
-            topic, payload.data.url
-        );
+        let message = NotificationMessage {
+            success: true,
+            topic: topic,
+            data: payload,
+        };
+
+        print_notification(message);
     });
 
-    let error_handler = Arc::new(|error: NotificationError| match error {
-        NotificationError::SubscriptionError(e) => {
-            eprintln!("{}", e);
-        }
-        NotificationError::ConnectionError(e) => {
-            eprintln!("{}", e);
-        }
+    let error_handler = Arc::new(|error: NotificationError| {
+        let message = ErrorMessage {
+            success: false,
+            error: error.to_string(),
+        };
+
+        print_notification(message);
     });
 
-    let id = Uuid::new_v4();
     notification_service
-        .start(id.to_string(), false, message_handler, error_handler)
+        .start(client_id.to_string(), false, message_handler, error_handler)
         .await?;
 
     Ok(())
+}
+
+fn print_notification<T: Serialize>(notification: T) {
+    let json = serde_json::to_string(&notification).unwrap();
+    println!("{}", json);
 }
