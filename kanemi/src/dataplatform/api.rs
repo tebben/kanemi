@@ -1,9 +1,10 @@
 use super::errors::ApiError;
-use super::models;
+use super::models::{self};
 use models::config::DatasetConfig;
 use models::response::*;
 use reqwest::Client;
-use tokio::fs::File;
+use std::path::Path;
+use tokio::fs::{self, File};
 use tokio::io::AsyncWriteExt;
 
 pub struct OpenDataAPI {
@@ -13,14 +14,18 @@ pub struct OpenDataAPI {
 }
 
 impl OpenDataAPI {
-    pub fn new(base_url: String, api_key: String, dataset_config: DatasetConfig) -> Self {
+    pub fn new(
+        api_key: String,
+        dataset_config: DatasetConfig,
+        custom_base_url: Option<String>,
+    ) -> Self {
         OpenDataAPI {
-            base_url,
+            base_url: custom_base_url
+                .unwrap_or_else(|| "https://api.dataplatform.knmi.nl/open-data/v1".to_string()),
             api_key,
             dataset_config,
         }
     }
-
     fn get_latest_file_url_and_params(&self, max_files: i8) -> (String, [(&str, String); 3]) {
         let url = format!(
             "{}/datasets/{}/versions/{}/files",
@@ -94,8 +99,51 @@ impl OpenDataAPI {
         Ok(data)
     }
 
-    /// This function downloads a file from the given URL and saves it to the output path
-    pub async fn download_file(&self, url: String, output_path: String) -> Result<(), ApiError> {
+    pub async fn get_latest_download_url(&self) -> Result<(String, UrlResponse), ApiError> {
+        let latest_files = self.get_latest_files(1).await?;
+        if latest_files.files.len() != 1 {
+            return Err(ApiError::FetchError("No files found".to_string()));
+        }
+
+        let filename = &latest_files.files[0].filename;
+        let response = self.get_download_url(filename.clone()).await?;
+
+        Ok((filename.clone(), response))
+    }
+
+    pub async fn download_latest_file(
+        &self,
+        output_path: String,
+        filename: Option<String>,
+    ) -> Result<String, ApiError> {
+        let (filename_latest, response) = self.get_latest_download_url().await?;
+        let filename: String = filename.unwrap_or(filename_latest);
+        let output_filepath = Path::new(&output_path)
+            .join(filename.clone())
+            .to_str()
+            .unwrap()
+            .to_string();
+
+        self.download_file(response.temporary_download_url, output_filepath.clone())
+            .await?;
+
+        Ok(output_filepath)
+    }
+
+    /// This function downloads a file from the given URL and saves it to the given output_filepath
+    pub async fn download_file(
+        &self,
+        url: String,
+        output_filepath: String,
+    ) -> Result<(), ApiError> {
+        // Ensure the parent directory exists
+        let output_filepath = Path::new(&output_filepath);
+        if let Some(parent) = output_filepath.parent() {
+            fs::create_dir_all(parent)
+                .await
+                .map_err(|e| ApiError::SaveFileError(e.to_string()))?;
+        }
+
         let client = Client::new();
         let response = client
             .get(url)
@@ -104,7 +152,7 @@ impl OpenDataAPI {
             .map_err(|e| ApiError::FetchError(e.to_string()))?;
 
         if response.status().is_success() {
-            let mut file = File::create(output_path)
+            let mut file = File::create(output_filepath)
                 .await
                 .map_err(|e| ApiError::SaveFileError(e.to_string()))?;
 
