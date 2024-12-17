@@ -11,6 +11,9 @@ async fn main() {
     let cli = Cli::parse();
 
     match cli.command {
+        CliCommands::Download(download) => {
+            handlers::download::handle_command(download).await;
+        }
         CliCommands::Forecast(forecast) => {
             handlers::forecast::handle_command(forecast).await;
         }

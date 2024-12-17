@@ -122,6 +122,11 @@ Default: ./output
 
 Example: --output-dir ./output"#;
 
+pub const SHORT_HELP_DOWNLOAD_OUTPUT_FILENAME: &str =
+    r#"The name to use for saving the file, leave black to use original name"#;
+pub const LONG_HELP_DOWNLOAD_OUTPUT_FILENAME: &str =
+    r#"The name to use for saving the file, leave black to use original name"#;
+
 pub const SHORT_HELP_INPUT_FILE: &str =
     r#"Input file to load, new file will be downloaded if not provided"#;
 pub const LONG_HELP_INPUT_FILE: &str = r#"Input file to load, new file will be downloaded if not provided
@@ -136,8 +141,10 @@ browse to https://developer.dataplatform.knmi.nl/open-data-api#token
 
 Key can be set trough env var KNMI_API_KEY_OPEN_DATA"#;
 
-pub const SHORT_HELP_DATASET_NAME_NOTI: &str = "The name of the dataset to subscribe to";
-pub const SHORT_HELP_DATASET_VERSION_NOTI: &str = "The version of the dataset to subscribe to";
+pub const SHORT_HELP_DATASET_NAME: &str =
+    "The name of the dataset as found on the KNMI Open Data API";
+pub const SHORT_HELP_DATASET_VERSION: &str =
+    "The version of the dataset as found on the KNMI Open Data API";
 pub const SHORT_HELP_CLIENT_ID_NOTI: &str = "Unique client id for the notification service";
 pub const LONG_HELP_CLIENT_ID_NOTI: &str = r#"Unique client id for the notification service
 The client identifier is a string that identifies each MQTT client that connects to an MQTT server.

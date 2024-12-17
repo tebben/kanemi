@@ -1,5 +1,6 @@
 mod help;
 
+pub mod download;
 pub mod forecast;
 pub mod geocoder;
 pub mod notifications;
@@ -17,6 +18,9 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub enum CliCommands {
+    /// Download KNMI data from the Open Data API
+    Download(download::DownloadOptions),
+
     /// Print the precipitation forecast from input file or a newly downloaded KNMI dataset
     Forecast(forecast::ForecastOptions),
 
