@@ -48,7 +48,7 @@ pub async fn run(
     let message_handler = Arc::new(|topic: String, payload: NotificationReponse| {
         let message = NotificationMessage {
             success: true,
-            topic: topic,
+            topic,
             data: payload,
         };
 

@@ -9,10 +9,10 @@ pub struct ForecastOptions {
     #[arg(short, long, env = "KNMI_LOCATION", value_parser = parse_location, help = SHORT_HELP_LOCATION, long_help = LONG_HELP_LOCATION)]
     pub location: (f64, f64),
 
-    #[arg(short, long, env = "KNMI_OUTPUT_DIR", required = false, default_value = "./output", help = SHORT_HELP_OUTPUT_DIR, long_help = LONG_HELP_OUTPUT_DIR)]
-    pub output_dir: Option<String>,
+    #[arg(short, long, required = false, default_value = "./output", help = SHORT_HELP_OUTPUT_DIR, long_help = LONG_HELP_OUTPUT_DIR)]
+    pub output_dir: String,
 
-    #[arg(short, long, env = "KNMI_INPUT_FILE", required = false, help = SHORT_HELP_INPUT_FILE, long_help = LONG_HELP_INPUT_FILE)]
+    #[arg(short, long, required = false, help = SHORT_HELP_INPUT_FILE, long_help = LONG_HELP_INPUT_FILE)]
     pub input_file: Option<String>,
 }
 

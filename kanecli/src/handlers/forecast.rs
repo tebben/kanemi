@@ -22,7 +22,7 @@ pub async fn get_forecast(
     api_key: String,
     dataset_config: DatasetConfig,
     input_file: Option<String>,
-    output_dir: Option<String>,
+    output_dir: String,
     longitude: f64,
     latitude: f64,
 ) {
@@ -32,76 +32,24 @@ pub async fn get_forecast(
         return;
     }
 
-    let mut filepath = String::from("");
-    if let Some(output_dir) = output_dir {
-        filepath = output_dir.clone();
-        create_dir_if_not_exists(&output_dir);
-    }
-
-    print_from_download(api_key, dataset_config, filepath, longitude, latitude).await;
+    print_from_download(api_key, dataset_config, output_dir, longitude, latitude).await;
 }
 
 async fn print_from_download(
     api_key: String,
     dataset_config: DatasetConfig,
-    mut filepath: String,
+    output_dir: String,
     longitude: f64,
     latitude: f64,
 ) {
-    let oda = OpenDataAPI::new(
-        "https://api.dataplatform.knmi.nl/open-data/v1".to_string(),
-        api_key,
-        dataset_config,
-    );
-
-    // get latest filename
-    let latest_files = oda.get_latest_files(1).await;
-    if let Err(e) = latest_files {
+    let oda = OpenDataAPI::new(api_key, dataset_config, None);
+    let lates_file = oda.download_latest_file(output_dir, None).await;
+    if let Err(e) = lates_file {
         eprintln!("Error: {}", e);
         return;
     }
 
-    let latest_files = latest_files.unwrap();
-    if latest_files.files.len() != 1 {
-        eprintln!("Error: No files found");
-        return;
-    }
-
-    let filename = &latest_files.files[0].filename;
-
-    // get download url
-    let download_url = oda.get_download_url(filename.clone()).await;
-    if let Err(e) = download_url {
-        eprintln!("Error: {}", e);
-        return;
-    }
-
-    let download_url = download_url.unwrap();
-
-    // create full path full path is filename if output_dir is not provided
-    if !filepath.is_empty() {
-        filepath.push('/');
-    }
-    filepath.push_str(filename);
-
-    // download file
-    let download = oda
-        .download_file(download_url.temporary_download_url, filepath.clone())
-        .await;
-    if let Err(e) = download {
-        eprintln!("Error: {}", e);
-        return;
-    }
-
-    println!("Downloaded file: {}", filepath);
-    load_and_print_data(filepath.clone(), longitude, latitude);
-}
-
-// create dir if not exists
-fn create_dir_if_not_exists(dir: &str) {
-    if !std::path::Path::new(&dir).exists() {
-        std::fs::create_dir_all(dir).unwrap();
-    }
+    load_and_print_data(lates_file.unwrap(), longitude, latitude);
 }
 
 fn load_and_print_data(filename: String, longitude: f64, latitude: f64) {
