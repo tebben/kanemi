@@ -78,6 +78,7 @@ A CLI tool to work with KNMI data and maybe some other stuff
 Usage: kanecli <COMMAND>
 
 Commands:
+  download       Download KNMI data from the KNMI Data Platform
   forecast       Print the precipitation forecast from input file or a newly downloaded KNMI dataset
   notifications  Test the notification service
   geocoder       Geocode or reverse geocode a location using the PDOK Locatieserver
