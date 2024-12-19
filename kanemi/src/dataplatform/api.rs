@@ -146,7 +146,7 @@ impl OpenDataAPI {
 
         let client = Client::new();
         let response = client
-            .get(url)
+            .get(&url)
             .send()
             .await
             .map_err(|e| ApiError::FetchError(e.to_string()))?;
@@ -161,10 +161,16 @@ impl OpenDataAPI {
                 .await
                 .map_err(|e| ApiError::FetchError(e.to_string()))?;
 
-            let write = file.write_all(&content).await;
-            if write.is_err() {
-                return Err(ApiError::SaveFileError(write.err().unwrap().to_string()));
-            }
+            file.write_all(&content)
+                .await
+                .map_err(|e| ApiError::SaveFileError(e.to_string()))?;
+
+            // Explicitly flush the buffer to ensure all data is written
+            // not doing this will result in errors while calling download and
+            // dataset load functions multiple times in a row
+            file.flush()
+                .await
+                .map_err(|e| ApiError::SaveFileError(e.to_string()))?;
 
             Ok(())
         } else {
