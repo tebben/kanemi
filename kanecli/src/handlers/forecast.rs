@@ -43,7 +43,9 @@ async fn print_from_download(
     latitude: f64,
 ) {
     let oda = OpenDataAPI::new(api_key, dataset_config, None);
-    let lates_file = oda.download_latest_file(output_dir, None).await;
+    let lates_file = oda
+        .download_latest_file(output_dir, None, Some(false))
+        .await;
     if let Err(e) = lates_file {
         eprintln!("Error: {}", e);
         return;

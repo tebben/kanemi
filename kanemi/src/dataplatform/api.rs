@@ -115,6 +115,7 @@ impl OpenDataAPI {
         &self,
         output_path: String,
         filename: Option<String>,
+        overwrite: Option<bool>,
     ) -> Result<String, ApiError> {
         let (filename_latest, response) = self.get_latest_download_url().await?;
         let filename: String = filename.unwrap_or(filename_latest);
@@ -124,8 +125,12 @@ impl OpenDataAPI {
             .unwrap()
             .to_string();
 
-        self.download_file(response.temporary_download_url, output_filepath.clone())
-            .await?;
+        self.download_file(
+            &response.temporary_download_url,
+            &output_filepath,
+            overwrite,
+        )
+        .await?;
 
         Ok(output_filepath)
     }
@@ -133,8 +138,9 @@ impl OpenDataAPI {
     /// This function downloads a file from the given URL and saves it to the given output_filepath
     pub async fn download_file(
         &self,
-        url: String,
-        output_filepath: String,
+        url: &str,
+        output_filepath: &str,
+        overwrite: Option<bool>,
     ) -> Result<(), ApiError> {
         // Ensure the parent directory exists
         let output_filepath = Path::new(&output_filepath);
@@ -144,9 +150,18 @@ impl OpenDataAPI {
                 .map_err(|e| ApiError::SaveFileError(e.to_string()))?;
         }
 
+        // Skip download if file already exists and overwrite is false
+        if output_filepath.exists() && overwrite.unwrap_or(false) {
+            fs::remove_file(output_filepath)
+                .await
+                .map_err(|e| ApiError::SaveFileError(e.to_string()))?;
+        } else if output_filepath.exists() {
+            return Ok(());
+        }
+
         let client = Client::new();
         let response = client
-            .get(&url)
+            .get(url)
             .send()
             .await
             .map_err(|e| ApiError::FetchError(e.to_string()))?;

@@ -22,7 +22,7 @@ pub async fn handle_command(options: DownloadOptions) {
 
     let oda = OpenDataAPI::new(options.api_key, dataset_config, None);
     let latets_download_url = oda
-        .download_latest_file(options.output_dir, options.output_filename)
+        .download_latest_file(options.output_dir, options.output_filename, Some(true))
         .await;
     if let Err(e) = latets_download_url {
         let message = ErrorMessage {
