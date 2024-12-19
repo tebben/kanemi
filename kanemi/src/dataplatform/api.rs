@@ -1,7 +1,7 @@
 use super::errors::ApiError;
 use super::models::{self};
 use models::config::DatasetConfig;
-use models::response::*;
+use models::response::{FilesResponse, UrlResponse};
 use reqwest::Client;
 use std::path::Path;
 use tokio::fs::{self, File};
@@ -41,7 +41,7 @@ impl OpenDataAPI {
         (url, query_params)
     }
 
-    fn get_file_download_url(&self, filename: String) -> String {
+    fn get_file_download_url(&self, filename: &str) -> String {
         format!(
             "{}/datasets/{}/versions/{}/files/{}/url",
             &self.base_url,
@@ -83,7 +83,7 @@ impl OpenDataAPI {
     }
 
     /// This function returns the download URL for the given file
-    pub async fn get_download_url(&self, filename: String) -> Result<UrlResponse, ApiError> {
+    pub async fn get_download_url(&self, filename: &str) -> Result<UrlResponse, ApiError> {
         let url = self.get_file_download_url(filename);
         let response = self
             .create_get_request(url, None)
@@ -99,27 +99,29 @@ impl OpenDataAPI {
         Ok(data)
     }
 
-    pub async fn get_latest_download_url(&self) -> Result<(String, UrlResponse), ApiError> {
+    pub async fn get_latest_download_url(
+        &self,
+    ) -> Result<(models::response::File, UrlResponse), ApiError> {
         let latest_files = self.get_latest_files(1).await?;
         if latest_files.files.len() != 1 {
             return Err(ApiError::FetchError("No files found".to_string()));
         }
 
-        let filename = &latest_files.files[0].filename;
-        let response = self.get_download_url(filename.clone()).await?;
+        let file = latest_files.files[0].clone();
+        let response = self.get_download_url(&file.filename).await?;
 
-        Ok((filename.clone(), response))
+        Ok((file, response))
     }
 
     pub async fn download_latest_file(
         &self,
-        output_path: String,
+        output_path: &str,
         filename: Option<String>,
         overwrite: Option<bool>,
-    ) -> Result<String, ApiError> {
-        let (filename_latest, response) = self.get_latest_download_url().await?;
-        let filename: String = filename.unwrap_or(filename_latest);
-        let output_filepath = Path::new(&output_path)
+    ) -> Result<(models::response::File, String), ApiError> {
+        let (file, response) = self.get_latest_download_url().await?;
+        let filename: String = filename.unwrap_or(file.filename.clone());
+        let output_filepath = Path::new(output_path)
             .join(filename.clone())
             .to_str()
             .unwrap()
@@ -132,7 +134,7 @@ impl OpenDataAPI {
         )
         .await?;
 
-        Ok(output_filepath)
+        Ok((file, output_filepath))
     }
 
     /// This function downloads a file from the given URL and saves it to the given output_filepath

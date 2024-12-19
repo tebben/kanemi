@@ -43,15 +43,17 @@ async fn print_from_download(
     latitude: f64,
 ) {
     let oda = OpenDataAPI::new(api_key, dataset_config, None);
-    let lates_file = oda
-        .download_latest_file(output_dir, None, Some(false))
+    let download_result = oda
+        .download_latest_file(&output_dir, None, Some(false))
         .await;
-    if let Err(e) = lates_file {
+    if let Err(e) = download_result {
         eprintln!("Error: {}", e);
         return;
     }
 
-    load_and_print_data(lates_file.unwrap(), longitude, latitude);
+    let (_, latest_download_url) = download_result.unwrap();
+
+    load_and_print_data(latest_download_url, longitude, latitude);
 }
 
 fn load_and_print_data(filename: String, longitude: f64, latitude: f64) {
