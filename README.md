@@ -130,3 +130,12 @@ kanecli geocoder reverse --lonlat "4.887295127944717,52.36849110206849" --rows 5
 ```bash
 cargo build --release
 ```
+
+## App
+
+Testing creating an app using Tauri with Svelte
+
+```sh
+cd app
+npm run tauri dev
+```

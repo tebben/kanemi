@@ -4,6 +4,7 @@ members = [
     "kanecli",
     "kanemi",
     "pdok_geocoder",
+    "app/src-tauri"
 ]
 
 [profile.release]
