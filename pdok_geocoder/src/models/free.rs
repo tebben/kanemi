@@ -71,6 +71,8 @@ pub struct Doc {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub huis_nlt: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub huisletter: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub waterschapcode: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub waterschapsnaam: Option<String>,
