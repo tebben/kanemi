@@ -55,7 +55,7 @@ pub async fn get_nowcast_forecast(
             let image = image.unwrap();
             let value = image.get_value_at_lon_lat(longitude, latitude).unwrap();
             let mm_per_hour = pixel_to_mm_hr(value.unwrap());
-            let iso_datetime = image.datetime.format("%Y-%m-%dT%H:%M:%S").to_string();
+            let iso_datetime = image.datetime.format("%Y-%m-%dT%H:%M:%SZ").to_string();
             let forecast_value = ForecastValue {
                 datetime: iso_datetime,
                 value: mm_per_hour,
