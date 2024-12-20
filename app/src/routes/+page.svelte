@@ -6,13 +6,16 @@
 	import SettingsScreen from '$lib/windows/Settings.svelte';
 
 	let group = $state('weather');
-	let settingsLoaded = $derived(app.settingsManager.loaded);
+	let ready = app.loaded;
 </script>
 
+<!-- <div
+	class="grid h-screen max-w-full grid-rows-[auto_1fr_auto] overflow-x-hidden bg-gradient-to-br from-[#19141e] via-[#111519] to-[#111111]"
+> -->
 <div
-	class="grid h-screen max-w-full grid-rows-[auto_1fr_auto] overflow-x-hidden bg-gradient-to-b from-[#000] via-[#000] to-[#1e254a]"
+	class="grid h-screen max-w-full grid-rows-[auto_1fr_auto] overflow-x-hidden bg-gradient-to-br from-[#16222a] via-[#171e2c] to-[#151d29]"
 >
-	{#if settingsLoaded}
+	{#if $ready}
 		<div class="mt-4">
 			<Tabs bind:value={group} fluid>
 				{#snippet list()}

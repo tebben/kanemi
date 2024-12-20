@@ -1,47 +1,50 @@
 <script lang="ts">
-	import { invoke } from '@tauri-apps/api/core';
-	import { Search } from 'lucide-svelte';
-	import { Location } from '$lib/core/models/location';
+	import { app } from '$lib/app';
 
-	let location = $state('');
-	let geocodeResponse = $state<Array<Location>>([]);
+	let location = $derived(app.settingsManager.settings.location);
+	let municipality = $state<string | undefined>(undefined);
+	let street = $state<string | undefined>(undefined);
 
-	async function geocode(event: Event) {
-		event.preventDefault();
-		const reponse: string = await invoke('geocode', { location: location });
-		const parsed = JSON.parse(reponse);
-		const locations = parsed.docs.map((location: any) => {
-			return Location.fromJSON(location);
-		});
+	$effect(() => {
+		if ($location?.municipality) {
+			municipality = $location.municipality;
+			return;
+		}
 
-		geocodeResponse = locations;
-	}
+		municipality = undefined;
+	});
+
+	$effect(() => {
+		if ($location?.street) {
+			if ($location.houseNumber) {
+				street = `${$location.street}, ${$location.houseNumber}`;
+			} else {
+				street = $location.street;
+			}
+
+			return;
+		}
+
+		street = undefined;
+	});
 </script>
 
-{#snippet locationResult(location: Location)}
-	<div class="card preset-filled-surface-100-900 border-[1px] border-surface-200-800">
-		<p>{location.displayName}</p>
-	</div>
-{/snippet}
+<div class="text-center">
+	{#if $location}
+		<div>
+			{#if municipality}
+				<div class="h4">
+					{municipality}
+				</div>
+			{/if}
 
-<div class=" w-full text-center space-y-4 pt-4">
-	<form class="mx-auto w-full max-w-md space-y-8" onsubmit={geocode}>
-		<div class="input-group divide-surface-200-800 grid-cols-[auto_1fr_auto] divide-x">
-			<div class="input-group-cell">
-				<Search size={16} />
-			</div>
-			<input type="search" placeholder="Search..." bind:value={location} />
-			<button class="btn preset-filled">Search</button>
+			{#if street}
+				<div class="h6">
+					{street}
+				</div>
+			{/if}
 		</div>
-	</form>
-
-	<main class="bg-primary flex-col space-y-4">
-		{#if geocodeResponse.length > 0}
-			<div class="flex-col space-y-4">
-				{#each geocodeResponse as location}
-					{@render locationResult(location)}
-				{/each}
-			</div>
-		{/if}
-	</main>
+	{:else}
+		<p>No location selected</p>
+	{/if}
 </div>

@@ -1,9 +1,16 @@
 <script lang="ts">
-  import "../app.css";
-  import { app } from "$lib/app";
-  let { children } = $props();
+	import { onMount, onDestroy } from 'svelte';
+	import '../app.css';
+	import { app } from '$lib/app';
+	let { children } = $props();
 
-  app.init();
+	onMount(() => {
+		app.init();
+	});
+
+	onDestroy(() => {
+		app.destroy();
+	});
 </script>
 
 {@render children()}
