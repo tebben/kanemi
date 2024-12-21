@@ -1,6 +1,6 @@
-use super::errors::NotificationError;
 use super::models::config::MqttConfig;
 use super::models::response::NotificationReponse;
+use crate::errors::NotificationError;
 use rumqttc::{AsyncClient, MqttOptions, QoS, TlsConfiguration, Transport};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;

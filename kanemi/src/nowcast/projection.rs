@@ -18,7 +18,7 @@
 //! - `GEO_PIXEL_SIZE_X`: 1.000003457069397
 //! - `GEO_PIXEL_SIZE_Y`: 1.000004768371582
 
-use super::errors::ProjectionError;
+use crate::errors::ProjectionError;
 use once_cell::sync::Lazy;
 use proj4rs;
 use proj4rs::proj::Proj;
