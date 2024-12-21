@@ -2,6 +2,7 @@
 	import { app } from '$lib/app';
 
 	let location = $derived(app.settingsManager.settings.location);
+	let observation = $derived(app.observationManager.observation);
 	let municipality = $state<string | undefined>(undefined);
 	let street = $state<string | undefined>(undefined);
 
@@ -44,6 +45,20 @@
 				</div>
 			{/if}
 		</div>
+
+		{#if observation}
+			<div class="h6 mt-4">
+				<div class="flex flex-col">
+					<div>{observation.station.name}</div>
+					<div>{observation.station.ta} °C</div>
+					<div>Wind dir: {observation.station.dd}</div>
+					<div>Wind speed: {Math.round(observation.station.ff * 3.6)} km/h</div>
+					<div>Humidity: {observation.station.rh}%</div>
+					<div>Rain 24 hours: {observation.station.r24h} mm</div>
+					<div>ww: {observation.station.nc}</div>
+				</div>
+			</div>
+		{/if}
 	{:else}
 		<p>No location selected</p>
 	{/if}

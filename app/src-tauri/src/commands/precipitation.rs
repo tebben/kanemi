@@ -3,6 +3,7 @@ use kanemi::{
     nowcast::{dataset, transformation::pixel_to_mm_hr},
 };
 use serde::{Deserialize, Serialize};
+use std::fs;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Forecast {
@@ -23,11 +24,9 @@ pub async fn get_nowcast_forecast(
     latitude: f64,
 ) -> Result<String, String> {
     let dataset_config = DatasetConfig::new("radar_forecast".to_string(), "2.0".to_string());
-
+    let path = "./output/precipitation";
     let oda = OpenDataAPI::new(api_key, dataset_config, None);
-    let download_result = oda
-        .download_latest_file("./output", None, Some(false))
-        .await;
+    let download_result = oda.download_latest_file(&path, None, Some(false)).await;
     if let Err(e) = download_result {
         return Err(e.to_string());
     }
@@ -37,6 +36,9 @@ pub async fn get_nowcast_forecast(
     if let Err(e) = dataset {
         return Err(e.to_string());
     }
+
+    // remove all files in folder except for latest file
+    remove_files_except(&latest_file, &path);
 
     // loop over images 1 to 25 and store datetime and mm/h values to print later
     let mut forecast = Forecast {
@@ -66,4 +68,17 @@ pub async fn get_nowcast_forecast(
     }
 
     Ok(serde_json::to_string_pretty(&forecast).unwrap())
+}
+
+// remove all files in folder except for given file
+fn remove_files_except(file: &str, folder: &str) {
+    let paths = fs::read_dir(folder).unwrap();
+    for path in paths {
+        let path = path.unwrap().path();
+
+        // Check if the path is a file and not the specified file
+        if path.is_file() && path.to_str().unwrap() != file {
+            fs::remove_file(path).unwrap();
+        }
+    }
 }
