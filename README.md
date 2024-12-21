@@ -28,7 +28,7 @@ ToDo
 
 ### Meteo data - actual synoptic observations
 
-ToDo
+KNMI collects observations from the automatic weather stations situated in the Netherlands and BES islands on locations such as aerodromes and North Sea platforms. In addition, wind data from KNMI wind poles are included. The weather stations report every 10 minutes meteorological parameters such as temperature, relative humidity, wind, air pressure, visibility, precipitation and cloud cover. The number of parameters differs per station. The file for the past 10-minutes is available a few minutes later. It is possible that a station's observations may not be immediately available. Files are updated with missing data up to 4 hours later.
 
 ## Features
 
