@@ -2,7 +2,7 @@
   <img height="90" src="https://github.com/tebben/knmi-nowcast/blob/main/static/logo.png?raw=true">
 </p>
 
-The goal with kanemi is to provide a library and tools to work more easily with KNMI data.
+The goal of kanemi is to provide libraries and tools to work more easily with KNMI data.
 
 > Warning: LOOK MA! I'M DOING RUST!!!! (This repo is a learning project for Rust, no guarantees for the quality)
 
@@ -32,22 +32,23 @@ KNMI collects observations from the automatic weather stations situated in the N
 
 ## Features
 
-- Using the KNMI Data Platform
-- Using the KNMI notification service (work in progress)
+- Working with KNMI Data Platform
+- Receiving notifications from the KNMI notification service
 - Nowcast precipitation forecast
-  - Load dataset from HDF5 files
-  - Projection conversion between the HDF5 grid and EPSG:4326 (both directions)
+  - Load dataset from HDF5
+  - Projection conversion between HDF5 grid and EPSG:4326 (both directions)
   - Read image data and their time attribute
   - Get pixel values and mm/hr for a specific location (xy/lonlat)
+- Geocoder (PDOK Locatieserver) to geocode and reverse geocode locations in the Netherlands
 - Simple CLI tool only for demonstration currently
 
 ## Roadmap
 
+- Desktop app using Tauri and Svelte
 - CLI tool
 - More datasets
 - Webservice
 - Converters
-- Geocoder (PDOK Locatieserver)
 
 ## Prerequisites
 
