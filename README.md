@@ -43,7 +43,7 @@ This repo consists of multiple libraries and tools. Everythng is work in progres
   - Projection conversion between HDF5 grid and EPSG:4326 (both directions)
   - Read image data and their time attribute
   - Get pixel values and mm/hr for a specific location (xy/lonlat)
-  - Get 2hr precipitation forecast for a specific location (xy/lonlat)
+  - Get 2hr precipitation forecast for a specific location (lonlat)
 - Actual synoptic observations
   - Load dataset from netCDF
   - Get all stations and their observations
@@ -94,7 +94,7 @@ For the notifications service a different API key is needed and can be requested
 
 ## kanecli - CLI Tool
 
-For now the CLI only contains 3 simple test commands to test the notification service, get precipitation forecast and geocoding. Every command accepts it's own set of args, check the args with the `--help` flag on an option. `kanecli forecast --help` for example.
+For now the CLI only contains 4 commands to download datasets, get notifications, get precipitation forecast and (reverse)geocoding. Every command accepts it's own set of args, check the args with the `--help` flag on an option. `kanecli forecast --help` for example.
 
 ```bash
 A CLI tool to work with KNMI data and maybe some other stuff
