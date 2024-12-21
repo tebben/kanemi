@@ -1,5 +1,5 @@
-use super::errors::ApiError;
 use super::models::{self};
+use crate::errors::ApiError;
 use models::config::DatasetConfig;
 use models::response::{FilesResponse, UrlResponse};
 use reqwest::Client;
