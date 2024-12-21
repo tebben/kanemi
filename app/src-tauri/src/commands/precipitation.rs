@@ -1,6 +1,6 @@
 use kanemi::{
     dataplatform::{api::OpenDataAPI, models::config::DatasetConfig},
-    nowcast::dataset,
+    nowcast_precipitation::dataset,
 };
 use serde::{Deserialize, Serialize};
 use std::fs;

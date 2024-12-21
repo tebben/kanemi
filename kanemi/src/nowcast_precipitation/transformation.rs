@@ -21,7 +21,7 @@ const CALIBRATION_FACTOR: f64 = 0.01;
 /// # Examples
 ///
 /// ```rust
-/// use kanemi::nowcast::transformation::pixel_to_mm_hr;
+/// use kanemi::nowcast_precipitation::transformation::pixel_to_mm_hr;
 ///
 /// let mm_hr = pixel_to_mm_hr(113);
 /// let mm_hr = pixel_to_mm_hr(31);

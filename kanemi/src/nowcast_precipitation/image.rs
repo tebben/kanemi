@@ -58,7 +58,7 @@ impl Image {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::nowcast::transformation;
+    use crate::nowcast_precipitation::transformation;
 
     #[test]
     fn test_get_value_at_position() {

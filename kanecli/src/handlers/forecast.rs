@@ -1,7 +1,7 @@
 use crate::commands::forecast::ForecastOptions;
 use kanemi::{
     dataplatform::{api::OpenDataAPI, models::config::DatasetConfig},
-    nowcast::dataset,
+    nowcast_precipitation::dataset,
 };
 
 pub async fn handle_command(options: ForecastOptions) {

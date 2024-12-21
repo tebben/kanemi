@@ -1,7 +1,7 @@
 use super::image::Image;
 use super::transformation::{convert_hdf5_datetime, pixel_to_mm_hr};
 use crate::errors::DatasetError;
-use crate::nowcast::models::{PrecipitationForecast, PrecipitationForecastValue};
+use crate::nowcast_precipitation::models::{PrecipitationForecast, PrecipitationForecastValue};
 use hdf5::types::FixedAscii;
 use hdf5::File;
 use hdf5::Group;
@@ -85,7 +85,7 @@ impl Dataset {
     ///
     /// # Example
     /// ```
-    /// use kanemi::nowcast::dataset::Dataset;
+    /// use kanemi::nowcast_precipitation::dataset::Dataset;
     /// let dataset = Dataset::new("../example_data/example.hdf5".to_string()).unwrap();
     /// let forecast = dataset.get_forecast(5.0, 52.0).unwrap();
     /// ```
@@ -170,7 +170,7 @@ impl Dataset {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::nowcast::projection;
+    use crate::nowcast_precipitation::projection;
     use chrono::*;
 
     #[test]
