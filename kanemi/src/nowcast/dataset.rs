@@ -1,6 +1,7 @@
 use super::image::Image;
-use super::transformation::convert_hdf5_datetime;
+use super::transformation::{convert_hdf5_datetime, pixel_to_mm_hr};
 use crate::errors::DatasetError;
+use crate::nowcast::models::{PrecipitationForecast, PrecipitationForecastValue};
 use hdf5::types::FixedAscii;
 use hdf5::File;
 use hdf5::Group;
@@ -73,6 +74,55 @@ impl Dataset {
         // create the Image struct
         let image = Image::new(img_data, datetime);
         Ok(image)
+    }
+
+    /// Gets the precipitation forecast (2 hours) from the dataset for the given longitude and latitude.
+    /// The forecast contains the datetime and the precipitation value in mm/h for the next 25 images.
+    /// The longitude and latitude should be in the range of the dataset.
+    ///
+    /// # Errors
+    /// - `DatasetError::ReadError`: If an error occurs while reading the image.
+    ///
+    /// # Example
+    /// ```
+    /// use kanemi::nowcast::dataset::Dataset;
+    /// let dataset = Dataset::new("../example_data/example.hdf5".to_string()).unwrap();
+    /// let forecast = dataset.get_forecast(5.0, 52.0).unwrap();
+    /// ```
+    pub fn get_forecast(
+        &self,
+        longitude: f64,
+        latitude: f64,
+    ) -> Result<PrecipitationForecast, DatasetError> {
+        let mut forecast = PrecipitationForecast {
+            datetime: "".to_string(),
+            values: Vec::new(),
+        };
+
+        for i in 1..26 {
+            let image = self.read_image(i);
+            if image.is_err() {
+                return Err(DatasetError::ReadError("Error reading image".to_string()));
+            }
+
+            let image = image.unwrap();
+
+            // ToDo: Get the real file datetime
+            if i == 1 {
+                forecast.datetime = image.datetime.format("%Y-%m-%dT%H:%M:%SZ").to_string();
+            }
+
+            let value = image.get_value_at_lon_lat(longitude, latitude).unwrap();
+            let mm_per_hour = pixel_to_mm_hr(value.unwrap());
+            let iso_datetime = image.datetime.format("%Y-%m-%dT%H:%M:%SZ").to_string();
+
+            forecast.values.push(PrecipitationForecastValue {
+                datetime: iso_datetime,
+                value: mm_per_hour,
+            });
+        }
+
+        Ok(forecast)
     }
 
     fn get_image_datetime(&self, group: &Group) -> Result<String, DatasetError> {
@@ -181,5 +231,25 @@ mod tests {
 
         // Check if the same value is returned when using lon and lat
         assert_eq!(image.get_value_at_lon_lat(lon, lat).unwrap(), Some(5));
+    }
+
+    #[test]
+    fn test_forecast() {
+        let dataset = Dataset::new("../example_data/example.hdf5".to_string()).unwrap();
+        let grid_x = 111;
+        let grid_y = 527;
+
+        // get lon and lat from the grid position
+        let (lon, lat) = projection::grid_to_lon_lat(grid_x, grid_y).unwrap();
+
+        let forecast = dataset.get_forecast(lon, lat).unwrap();
+
+        // Check if the datetime is correct
+        assert_eq!(forecast.datetime, "2024-12-04T20:15:00Z");
+
+        // Check if the values are correct
+        assert_eq!(forecast.values.len(), 25);
+        assert_eq!(forecast.values[0].value, 0.0);
+        assert_eq!(forecast.values[24].value, 0.36);
     }
 }

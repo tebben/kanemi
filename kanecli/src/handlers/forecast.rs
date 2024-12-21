@@ -1,7 +1,7 @@
 use crate::commands::forecast::ForecastOptions;
 use kanemi::{
     dataplatform::{api::OpenDataAPI, models::config::DatasetConfig},
-    nowcast::{dataset, transformation::pixel_to_mm_hr},
+    nowcast::dataset,
 };
 
 pub async fn handle_command(options: ForecastOptions) {
@@ -64,28 +64,19 @@ fn load_and_print_data(filename: String, longitude: f64, latitude: f64) {
     }
 
     let dataset = dataset.unwrap();
-
-    // loop over images 1 to 25 and store datetime and mm/h values to print later
-    let mut values = Vec::new();
-    for i in 1..26 {
-        let image = dataset.read_image(i);
-        if let Err(e) = image {
-            eprintln!("Error: {}", e);
-            return;
-        }
-
-        let image = image.unwrap();
-        let value = image.get_value_at_lon_lat(longitude, latitude).unwrap();
-        let mm_per_hour = pixel_to_mm_hr(value.unwrap());
-        values.push((image.datetime, mm_per_hour));
+    let forecast = dataset.get_forecast(longitude, latitude);
+    if let Err(e) = forecast {
+        eprintln!("Error: {}", e);
+        return;
     }
 
-    let date_time_first = values.first().unwrap().0;
+    let forecast = forecast.unwrap();
+    let date_time_first = forecast.datetime;
+    let values = forecast.values;
+
     println!(
         "\x1b[45m\x1b[37m\x1b[1m{} - Precipitation @ {}, {}\x1b[0m",
-        date_time_first.format("%d-%m-%Y"),
-        longitude,
-        latitude
+        date_time_first, longitude, latitude
     );
 
     println!("\x1b[92m-----------------------------------\x1b[0m");
@@ -94,8 +85,9 @@ fn load_and_print_data(filename: String, longitude: f64, latitude: f64) {
     println!();
     println!("\x1b[92m-----------------------------------\x1b[0m");
 
-    for (datetime, value) in values {
-        print!("\x1b[33m{:<10}\x1b[0m", datetime.format("%H:%M"));
-        println!("\x1b[33m{:<10}\x1b[0m", value);
+    for value in values {
+        let hhmm = value.datetime.split('T').collect::<Vec<&str>>()[1];
+        print!("\x1b[33m{:<10}\x1b[0m", hhmm);
+        println!("\x1b[33m{:<10}\x1b[0m", value.value);
     }
 }

@@ -1,6 +1,6 @@
 use kanemi::{
     dataplatform::{api::OpenDataAPI, models::config::DatasetConfig},
-    nowcast::{dataset, transformation::pixel_to_mm_hr},
+    nowcast::dataset,
 };
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -31,7 +31,7 @@ pub async fn get_nowcast_forecast(
         return Err(e.to_string());
     }
 
-    let (file, latest_file) = download_result.unwrap();
+    let (_, latest_file) = download_result.unwrap();
     let dataset = dataset::Dataset::new(latest_file.clone());
     if let Err(e) = dataset {
         return Err(e.to_string());
@@ -40,32 +40,8 @@ pub async fn get_nowcast_forecast(
     // remove all files in folder except for latest file
     remove_files_except(&latest_file, &path);
 
-    // loop over images 1 to 25 and store datetime and mm/h values to print later
-    let mut forecast = Forecast {
-        datetime: file.created,
-        values: Vec::new(),
-    };
-
-    {
-        let dataset = dataset.unwrap();
-        for i in 1..26 {
-            let image = dataset.read_image(i);
-            if let Err(e) = image {
-                return Err(e.to_string());
-            }
-
-            let image = image.unwrap();
-            let value = image.get_value_at_lon_lat(longitude, latitude).unwrap();
-            let mm_per_hour = pixel_to_mm_hr(value.unwrap());
-            let iso_datetime = image.datetime.format("%Y-%m-%dT%H:%M:%SZ").to_string();
-            let forecast_value = ForecastValue {
-                datetime: iso_datetime,
-                value: mm_per_hour,
-            };
-
-            forecast.values.push(forecast_value);
-        }
-    }
+    let dataset = dataset.unwrap();
+    let forecast = dataset.get_forecast(longitude, latitude).unwrap();
 
     Ok(serde_json::to_string_pretty(&forecast).unwrap())
 }

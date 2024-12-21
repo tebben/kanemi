@@ -36,7 +36,6 @@ impl Dataset {
 
     /// Load all stations but only a few attributes
     fn load_stations_short(&mut self) {
-        let time = self.load_f64_variable_values("time");
         let station_code = self.load_string_variable_values("station");
         let station_name = self.load_string_variable_values("stationname");
         let lat = self.load_f64_variable_values("lat");

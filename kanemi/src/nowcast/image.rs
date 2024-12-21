@@ -1,4 +1,5 @@
 use super::projection::lon_lat_to_grid;
+use super::transformation::pixel_to_mm_hr;
 use crate::errors::ProjectionError;
 use chrono::NaiveDateTime;
 use ndarray::{ArrayBase, Ix2, OwnedRepr};
@@ -27,6 +28,10 @@ impl Image {
         }
     }
 
+    pub fn get_mmhhr_at_position(&self, x: usize, y: usize) -> Option<f64> {
+        self.get_value_at_position(x, y).map(pixel_to_mm_hr)
+    }
+
     /// Returns the raw pixel value at a specific longitude and latitude position, none if the position is out of bounds.
     ///
     /// # Errors
@@ -38,6 +43,15 @@ impl Image {
     ) -> Result<Option<u16>, ProjectionError> {
         let (x, y) = lon_lat_to_grid(longitude, latitude)?;
         Ok(self.get_value_at_position(x as usize, y as usize))
+    }
+
+    pub fn get_mmhhr_at_lon_lat(
+        &self,
+        longitude: f64,
+        latitude: f64,
+    ) -> Result<Option<f64>, ProjectionError> {
+        self.get_value_at_lon_lat(longitude, latitude)
+            .map(|value| value.map(pixel_to_mm_hr))
     }
 }
 
@@ -72,5 +86,14 @@ mod tests {
         assert!(image.get_value_at_position(700, 0).is_none());
         assert!(image.get_value_at_position(0, 765).is_none());
         assert!(image.get_value_at_position(700, 765).is_none());
+
+        // test mm/h conversion
+        assert_eq!(image.get_mmhhr_at_position(0, 0).unwrap(), 0.0);
+        assert_eq!(image.get_mmhhr_at_position(699, 764).unwrap(), 83.88);
+
+        let lon = 0.0;
+        let lat = 55.9736;
+        assert_eq!(image.get_value_at_lon_lat(lon, lat).unwrap().unwrap(), 0);
+        assert_eq!(image.get_mmhhr_at_lon_lat(lon, lat).unwrap().unwrap(), 0.0);
     }
 }
