@@ -1,11 +1,9 @@
 use crate::commands::notifications::NotificationOptions;
-use kanemi::dataplatform::{
-    errors::NotificationError,
-    models::{
-        config::{DatasetConfig, MqttConfig},
-        response::NotificationReponse,
-    },
+use kanemi::dataplatform::models::{
+    config::{DatasetConfig, MqttConfig},
+    response::NotificationReponse,
 };
+use kanemi::errors::NotificationError;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
