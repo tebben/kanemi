@@ -44,7 +44,7 @@ This repo consists of multiple libraries and tools. Everythng is work in progres
   - Read image data and their time attribute
   - Get pixel values and mm/hr for a specific location (xy/lonlat)
   - Get 2hr precipitation forecast for a specific location (xy/lonlat)
-- Actuel synoptic observations
+- Actual synoptic observations
   - Load dataset from netCDF
   - Get all stations and their observations
   - Get closest station with observations and distance for a given location (lonlat)
