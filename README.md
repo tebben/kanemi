@@ -32,6 +32,10 @@ KNMI collects observations from the automatic weather stations situated in the N
 
 ## Features
 
+This repo consists of multiple libraries and tools. Everythng is work in progress.
+
+### Library kanemi
+
 - Working with KNMI Data Platform
 - Receiving notifications from the KNMI notification service
 - Nowcast precipitation forecast
@@ -39,16 +43,35 @@ KNMI collects observations from the automatic weather stations situated in the N
   - Projection conversion between HDF5 grid and EPSG:4326 (both directions)
   - Read image data and their time attribute
   - Get pixel values and mm/hr for a specific location (xy/lonlat)
-- Geocoder (PDOK Locatieserver) to geocode and reverse geocode locations in the Netherlands
-- Simple CLI tool only for demonstration currently
+  - Get 2hr precipitation forecast for a specific location (xy/lonlat)
+- Actuel synoptic observations
+  - Load dataset from netCDF
+  - Get all stations and their observations
+  - Get closest station with observations and distance for a given location (lonlat)
+
+### Library pdok_geocoder
+
+- Geocode free text search
+- Reverse geocode lonlat/rd
+
+### CLI tool kanecli
+
+- Download KNMI data from the KNMI Data Platform
+- Get notifications from the KNMI notification service
+- Get precipitation forecast for a specific location
+- Geocode and reverse geocode locations in the Netherlands
+
+### App
+
+- Desktop app using Tauri and Svelte (work in progress)
 
 ## Roadmap
 
 - Desktop app using Tauri and Svelte
-- CLI tool
+- Make CLI better and add more features
+- Geocoder: Lookup, suggets
 - More datasets
-- Webservice
-- Converters
+- Webservice/API
 
 ## Prerequisites
 
@@ -138,5 +161,5 @@ Testing creating an app using Tauri with Svelte
 
 ```sh
 cd app
-npm run tauri dev
+cargo tauri dev
 ```
