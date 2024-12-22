@@ -86,7 +86,7 @@ impl Dataset {
     /// # Example
     /// ```
     /// use kanemi::nowcast_precipitation::dataset::Dataset;
-    /// let dataset = Dataset::new("../example_data/example.hdf5".to_string()).unwrap();
+    /// let dataset = Dataset::new("../example_data/RAD_NL25_RAC_FM_202412222055.h5".to_string()).unwrap();
     /// let forecast = dataset.get_forecast(5.0, 52.0).unwrap();
     /// ```
     pub fn get_forecast(
@@ -188,7 +188,8 @@ mod tests {
 
     #[test]
     fn test_image_out_of_bounds() {
-        let dataset = Dataset::new("../example_data/example.hdf5".to_string()).unwrap();
+        let dataset =
+            Dataset::new("../example_data/RAD_NL25_RAC_FM_202412222055.h5".to_string()).unwrap();
         assert!(matches!(
             dataset.read_image(0).unwrap_err(),
             DatasetError::ImageIndexOutOfBounds(_)
@@ -202,22 +203,19 @@ mod tests {
 
     #[test]
     fn test_read_image_1() {
-        let dataset = Dataset::new("../example_data/example.hdf5".to_string()).unwrap();
-        let image = dataset.read_image(1).unwrap();
-
-        // Known by inspection this holds value 5
-        let grid_x = 20;
-        let grid_y = 430;
-
-        // get lon and lat from the grid position
-        let (lon, lat) = projection::grid_to_lon_lat(grid_x, grid_y).unwrap();
+        let dataset =
+            Dataset::new("../example_data/RAD_NL25_RAC_FM_202412222055.h5".to_string()).unwrap();
+        let image = dataset.read_image(15).unwrap();
+        let lon = 5.35192613;
+        let lat = 51.71680934;
+        let (grid_x, grid_y) = projection::lon_lat_to_grid(lon, lat).unwrap();
 
         // Check if the date time is correct
         assert_eq!(
             image.datetime,
-            NaiveDate::from_ymd_opt(2024, 12, 4)
+            NaiveDate::from_ymd_opt(2024, 12, 22)
                 .unwrap()
-                .and_hms_opt(20, 15, 0)
+                .and_hms_opt(22, 5, 0)
                 .unwrap()
         );
 
@@ -226,30 +224,27 @@ mod tests {
             image
                 .get_value_at_position(grid_x as usize, grid_y as usize)
                 .unwrap(),
-            5
+            46
         );
 
         // Check if the same value is returned when using lon and lat
-        assert_eq!(image.get_value_at_lon_lat(lon, lat).unwrap(), Some(5));
+        assert_eq!(image.get_value_at_lon_lat(lon, lat).unwrap(), Some(46));
     }
 
     #[test]
     fn test_forecast() {
-        let dataset = Dataset::new("../example_data/example.hdf5".to_string()).unwrap();
-        let grid_x = 111;
-        let grid_y = 527;
-
-        // get lon and lat from the grid position
-        let (lon, lat) = projection::grid_to_lon_lat(grid_x, grid_y).unwrap();
-
+        let dataset =
+            Dataset::new("../example_data/RAD_NL25_RAC_FM_202412222055.h5".to_string()).unwrap();
+        let lon = 5.35192613;
+        let lat = 51.71680934;
         let forecast = dataset.get_forecast(lon, lat).unwrap();
 
         // Check if the datetime is correct
-        assert_eq!(forecast.datetime, "2024-12-04T20:15:00Z");
+        assert_eq!(forecast.datetime, "2024-12-22T20:55:00Z");
 
         // Check if the values are correct
         assert_eq!(forecast.values.len(), 25);
         assert_eq!(forecast.values[0].value, 0.0);
-        assert_eq!(forecast.values[24].value, 0.36);
+        assert_eq!(forecast.values[15].value, 4.68);
     }
 }
