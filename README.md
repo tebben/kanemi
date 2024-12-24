@@ -22,9 +22,9 @@ Kanemi tries to provide easy access to the following datasets
 
 [Nowcast precipitation forecast](https://dataplatform.knmi.nl/dataset/radar-forecast-2-0) up to 2 hours ahead, per 5 minutes, over the Netherlands. The forecast contains 25 time steps: +0 minutes to +120 minutes. Forecasted is the precipitation sum per 5 minutes, on a grid of 1x1 km. The forecast is made with an operational KNMI implementation of pySTEPS. The forecast is initiated with the KNMI 5-minute real-time precipitation accumulation product: RTCOR-5m.
 
-### HARMONIE-AROME Cy43 forecasts Netherlands
+### HARMONIE-AROME Cy43 forecasts Netherlands (P1)
 
-ToDo
+HARMONIE information in gridded form (regular lat-lon) of near surface and boundary layer (up to 300 m) parameters from the UWC-West HARMONIE-AROME Cy43 model. For this weather forecast model, KNMI works closely with Iceland, Denmark and Ireland on local short-term weather forecasts under the name "United Weather Centres-West" (UWC-West). An international project team is working on a joint Numerical Weather Prediction model (NWP), procurement and management of the HPC (supercomputer) and infrastructure. The output frequency is 1 hour.
 
 ### Meteo data - actual synoptic observations
 
@@ -48,6 +48,8 @@ This repo consists of multiple libraries and tools. Everythng is work in progres
   - Load dataset from netCDF
   - Get all stations and their observations
   - Get closest station with observations and distance for a given location (lonlat)
+- Harmonie Cy43 P1
+  - Work in progress: Grib v1 reader optimized for Cy43 P1
 
 ### Library pdok_geocoder
 
