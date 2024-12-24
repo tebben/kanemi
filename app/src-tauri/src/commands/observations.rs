@@ -22,7 +22,7 @@ pub async fn get_closest_observation(
         DatasetConfig::new("Actuele10mindataKNMIstations".to_string(), "2".to_string());
     let path = "./output/observations";
     let oda = OpenDataAPI::new(api_key, dataset_config, None);
-    let download_result = oda.download_latest_file(&path, None, Some(false)).await;
+    let download_result = oda.download_latest_file(path, None, Some(false)).await;
     if let Err(e) = download_result {
         return Err(e.to_string());
     }
@@ -34,7 +34,7 @@ pub async fn get_closest_observation(
     }
 
     // remove all files in folder except for latest file
-    remove_files_except(&latest_file, &path);
+    remove_files_except(&latest_file, path);
 
     let dataset = dataset.unwrap();
     let (station, distance) = dataset.get_closest_station(longitude, latitude);

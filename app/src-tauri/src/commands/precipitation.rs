@@ -26,7 +26,7 @@ pub async fn get_nowcast_forecast(
     let dataset_config = DatasetConfig::new("radar_forecast".to_string(), "2.0".to_string());
     let path = "./output/precipitation";
     let oda = OpenDataAPI::new(api_key, dataset_config, None);
-    let download_result = oda.download_latest_file(&path, None, Some(false)).await;
+    let download_result = oda.download_latest_file(path, None, Some(false)).await;
     if let Err(e) = download_result {
         return Err(e.to_string());
     }
@@ -38,7 +38,7 @@ pub async fn get_nowcast_forecast(
     }
 
     // remove all files in folder except for latest file
-    remove_files_except(&latest_file, &path);
+    remove_files_except(&latest_file, path);
 
     let dataset = dataset.unwrap();
     let forecast = dataset.get_forecast(longitude, latitude).unwrap();
