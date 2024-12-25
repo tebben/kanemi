@@ -1,4 +1,9 @@
-// This is a reader specific to the KNMI Harmonie cy43 P1 grib files so we can optimize for that
+// KNMI uses and old version of Grib files (v1), multiple readers can be found for v2 but v1
+// is however not that common. I also don't like the bindings for eccodes, we need another dependency
+// and KNMI is using custom tables for their parameters which is a bit of a hassle to get working.
+//
+// We only work with the Harmonie cy43 P1 grib files, so we can optimize the reader for that. This means
+// this reader is not a general purpose Grib v1 reader.
 // - We know what messages are in the file
 // - We do not need to parse GDS since this is always the same for every message
 // - We do not need all the PDS fields, only a few
@@ -76,8 +81,8 @@ pub struct GridIdentificationSection {
     pub longitude_west: f32,
     pub latitude_north: f32,
     pub longitude_east: f32,
-    pub number_of_latitude_points: u16,
-    pub number_of_longitude_points: u16,
+    pub number_of_latitude_points: usize,
+    pub number_of_longitude_points: usize,
     pub latitude_spacing: f32,
     pub longitude_spacing: f32,
     pub scanning_mode: u8,
@@ -232,8 +237,8 @@ impl GribFile<File> {
 
         let pv_location = buffer[4];
         let data_representation_type = buffer[5];
-        let number_of_latitude_points = u16::from_be_bytes([buffer[6], buffer[7]]);
-        let number_of_longitude_points = u16::from_be_bytes([buffer[8], buffer[9]]);
+        let number_of_latitude_points = u16::from_be_bytes([buffer[6], buffer[7]]) as usize;
+        let number_of_longitude_points = u16::from_be_bytes([buffer[8], buffer[9]]) as usize;
         let latitude_south =
             (i32::from_be_bytes([0, buffer[10], buffer[11], buffer[12]]) as f32) * 0.001;
         let longitude_west =
@@ -511,17 +516,17 @@ impl GribFile<File> {
     /// Find the index of the closest longitude and latitude point in the grid
     /// to the given longitude and latitude
     pub fn closest_lon_lat_idx(&self, lon: &f32, lat: &f32) -> usize {
-        let lon_idx =
-            ((lon - self.grid.longitude_west) / self.grid.longitude_spacing).round() as isize;
-        let lat_idx =
-            ((lat - self.grid.latitude_south) / self.grid.latitude_spacing).round() as isize;
+        // Compute indices
+        let lon_idx = (((lon - self.grid.longitude_west) / self.grid.longitude_spacing)
+            .round()
+            .clamp(0.0, (self.grid.number_of_longitude_points - 1) as f32))
+            as usize;
+        let lat_idx = (((lat - self.grid.latitude_south) / self.grid.latitude_spacing)
+            .round()
+            .clamp(0.0, (self.grid.number_of_latitude_points - 1) as f32))
+            as usize;
 
-        //clamp to grid
-        let lon_idx =
-            lon_idx.clamp(0, (self.grid.number_of_longitude_points as isize) - 1) as usize;
-        let lat_idx = lat_idx.clamp(0, (self.grid.number_of_latitude_points as isize) - 1) as usize;
-
-        //return computed 1d index based on scanning mode
+        // Return computed 1D index based on scanning mode
         lat_idx * self.grid.number_of_longitude_points as usize + lon_idx
     }
 
