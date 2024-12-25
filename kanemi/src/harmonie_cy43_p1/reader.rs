@@ -10,468 +10,32 @@
 // Knowing these things we can easily index and skip to the parts we want. If messages always
 // appear in the same order we can even skip indexing, but we will index for now.
 //
+// scanning mode 64:
+// +i direction, -j direction, points in i direction are consecutive
+// +i direction means points scan horizontally across longitude (left to right, increasing longitude).
+// -j direction means rows are ordered vertically in decreasing latitude (from top to bottom).
+//
+// Griv v1 specs: watch out for one-based indexing vs zero-based indexing in our code
+// https://codes.ecmwf.int/grib/format/grib1/sections/0/
+//
 // Used parts of grib1_reader for inspiration: https://github.com/christian-boks/grib1_reader/blob/master/src/lib.rs
+//
+// ToDo:
+// - Test if location to index is correct
+// - Add if param has bmp
+// - Table lookup by name and level
+// - Cleanup
+// - Add function to read given values all and at specific locations
+// - Error handling
+// - Tests
+// - Benchmarks
 
+use super::grib_info::GRIBInfo;
 use bitstream_io::{BigEndian, BitRead, BitReader};
-use std::collections::HashMap;
 use std::fs::File;
 use std::io::Cursor;
 use std::io::{self, Read, Seek, SeekFrom};
 use std::path::Path;
-
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub struct ParameterCode(u8);
-
-impl ParameterCode {
-    pub fn new(code: u8) -> Self {
-        ParameterCode(code)
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-pub enum LevelType {
-    IsobaricLevel = 100,
-    AltitudeAboveSeaLevel = 103,
-    HeightAboveGround = 105,
-    HybridLevel = 109,
-    EntireAtmosphere = 200,
-}
-
-impl LevelType {
-    pub fn from_u16(value: u8) -> Option<Self> {
-        match value {
-            100 => Some(LevelType::IsobaricLevel),
-            103 => Some(LevelType::AltitudeAboveSeaLevel),
-            105 => Some(LevelType::HeightAboveGround),
-            109 => Some(LevelType::HybridLevel),
-            200 => Some(LevelType::EntireAtmosphere),
-            _ => None,
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-pub enum TimeRangeIndicator {
-    Instant = 0,
-    AccumulatedOverPeriodPart = 2,
-    AccumulatedOverForecastPeriod = 4,
-}
-
-impl TimeRangeIndicator {
-    pub fn from_u8(value: u8) -> Option<Self> {
-        match value {
-            0 => Some(TimeRangeIndicator::Instant),
-            2 => Some(TimeRangeIndicator::AccumulatedOverPeriodPart),
-            4 => Some(TimeRangeIndicator::AccumulatedOverForecastPeriod),
-            _ => None,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct MessageInfo {
-    pub code: ParameterCode,
-    pub short_name: String,
-    pub description: String,
-    pub units: String,
-    pub level_type: LevelType,
-    pub levels: Vec<u16>,
-    pub time_range_indicator: TimeRangeIndicator,
-    pub byte_index: usize,
-}
-
-impl MessageInfo {
-    pub fn set_byte_index(&mut self, index: usize) {
-        self.byte_index = index;
-    }
-}
-
-pub struct GRIBInfo {
-    table: HashMap<(u8, u8, u16, u8), MessageInfo>,
-}
-
-impl Default for GRIBInfo {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl GRIBInfo {
-    pub fn new() -> Self {
-        let mut table = HashMap::new();
-
-        let parameters = vec![
-            MessageInfo {
-                code: ParameterCode::new(1),
-                short_name: "PMSL".to_string(),
-                description: "Pressure altitude above mean sea level".to_string(),
-                units: "Pa".to_string(),
-                level_type: LevelType::AltitudeAboveSeaLevel,
-                levels: vec![0],
-                time_range_indicator: TimeRangeIndicator::Instant,
-                byte_index: 0,
-            },
-            MessageInfo {
-                code: ParameterCode::new(1),
-                short_name: "PSRF".to_string(),
-                description: "Pressure height above ground".to_string(),
-                units: "Pa".to_string(),
-                level_type: LevelType::HeightAboveGround,
-                levels: vec![0],
-                time_range_indicator: TimeRangeIndicator::Instant,
-                byte_index: 0,
-            },
-            MessageInfo {
-                code: ParameterCode::new(6),
-                short_name: "GP".to_string(),
-                description: "Geopotential".to_string(),
-                units: "m2 s-2".to_string(),
-                level_type: LevelType::HeightAboveGround,
-                levels: vec![0],
-                time_range_indicator: TimeRangeIndicator::Instant,
-                byte_index: 0,
-            },
-            MessageInfo {
-                code: ParameterCode::new(11),
-                short_name: "TMP".to_string(),
-                description: "Temperature".to_string(),
-                units: "K".to_string(),
-                level_type: LevelType::HeightAboveGround,
-                levels: vec![0, 2, 50, 100, 200, 300],
-                time_range_indicator: TimeRangeIndicator::Instant,
-                byte_index: 0,
-            },
-            MessageInfo {
-                code: ParameterCode::new(11),
-                short_name: "ISBA".to_string(),
-                description: "Temperature of nature tile".to_string(),
-                units: "K".to_string(),
-                level_type: LevelType::HeightAboveGround,
-                levels: vec![800, 801, 802],
-                time_range_indicator: TimeRangeIndicator::Instant,
-                byte_index: 0,
-            },
-            MessageInfo {
-                code: ParameterCode::new(17),
-                short_name: "DPT".to_string(),
-                description: "Dew-point temperature".to_string(),
-                units: "K".to_string(),
-                level_type: LevelType::HeightAboveGround,
-                levels: vec![2],
-                time_range_indicator: TimeRangeIndicator::Instant,
-                byte_index: 0,
-            },
-            MessageInfo {
-                code: ParameterCode::new(20),
-                short_name: "VIS".to_string(),
-                description: "Visibility".to_string(),
-                units: "m".to_string(),
-                level_type: LevelType::HeightAboveGround,
-                levels: vec![0],
-                time_range_indicator: TimeRangeIndicator::Instant,
-                byte_index: 0,
-            },
-            MessageInfo {
-                code: ParameterCode::new(33),
-                short_name: "UGRD".to_string(),
-                description: "u-component of wind".to_string(),
-                units: "m s-1".to_string(),
-                level_type: LevelType::HeightAboveGround,
-                levels: vec![10, 50, 100, 200, 300],
-                time_range_indicator: TimeRangeIndicator::Instant,
-                byte_index: 0,
-            },
-            MessageInfo {
-                code: ParameterCode::new(34),
-                short_name: "VGRD".to_string(),
-                description: "v-component of wind".to_string(),
-                units: "m s-1".to_string(),
-                level_type: LevelType::HeightAboveGround,
-                levels: vec![10, 50, 100, 200, 300],
-                time_range_indicator: TimeRangeIndicator::Instant,
-                byte_index: 0,
-            },
-            MessageInfo {
-                code: ParameterCode::new(52),
-                short_name: "RH".to_string(),
-                description: "Relative humidity".to_string(),
-                units: "%".to_string(),
-                level_type: LevelType::HeightAboveGround,
-                levels: vec![2],
-                time_range_indicator: TimeRangeIndicator::Instant,
-                byte_index: 0,
-            },
-            MessageInfo {
-                code: ParameterCode::new(61),
-                short_name: "APCP".to_string(),
-                description: "Total precipitation".to_string(),
-                units: "kg m-2".to_string(),
-                level_type: LevelType::HeightAboveGround,
-                levels: vec![0],
-                time_range_indicator: TimeRangeIndicator::AccumulatedOverForecastPeriod,
-                byte_index: 0,
-            },
-            MessageInfo {
-                code: ParameterCode::new(65),
-                short_name: "WEASD".to_string(),
-                description: "Water equivalent of accumulated snow depth".to_string(),
-                units: "kg m-2".to_string(),
-                level_type: LevelType::HeightAboveGround,
-                levels: vec![0],
-                time_range_indicator: TimeRangeIndicator::Instant,
-                byte_index: 0,
-            },
-            MessageInfo {
-                code: ParameterCode::new(66),
-                short_name: "SD".to_string(),
-                description: "Snow depth".to_string(),
-                units: "m".to_string(),
-                level_type: LevelType::HeightAboveGround,
-                levels: vec![0],
-                time_range_indicator: TimeRangeIndicator::Instant,
-                byte_index: 0,
-            },
-            MessageInfo {
-                code: ParameterCode::new(67),
-                short_name: "MIXHT".to_string(),
-                description: "Mixed layer depth".to_string(),
-                units: "m".to_string(),
-                level_type: LevelType::HeightAboveGround,
-                levels: vec![0],
-                time_range_indicator: TimeRangeIndicator::Instant,
-                byte_index: 0,
-            },
-            MessageInfo {
-                code: ParameterCode::new(71),
-                short_name: "TCDC".to_string(),
-                description: "Total cloud cover".to_string(),
-                units: "%".to_string(),
-                level_type: LevelType::HeightAboveGround,
-                levels: vec![0],
-                time_range_indicator: TimeRangeIndicator::Instant,
-                byte_index: 0,
-            },
-            MessageInfo {
-                code: ParameterCode::new(73),
-                short_name: "LCDC".to_string(),
-                description: "Low cloud cover".to_string(),
-                units: "%".to_string(),
-                level_type: LevelType::HeightAboveGround,
-                levels: vec![0],
-                time_range_indicator: TimeRangeIndicator::Instant,
-                byte_index: 0,
-            },
-            MessageInfo {
-                code: ParameterCode::new(74),
-                short_name: "MCDC".to_string(),
-                description: "Medium cloud cover".to_string(),
-                units: "%".to_string(),
-                level_type: LevelType::HeightAboveGround,
-                levels: vec![0],
-                time_range_indicator: TimeRangeIndicator::Instant,
-                byte_index: 0,
-            },
-            MessageInfo {
-                code: ParameterCode::new(75),
-                short_name: "HCDC".to_string(),
-                description: "High cloud cover".to_string(),
-                units: "%".to_string(),
-                level_type: LevelType::HeightAboveGround,
-                levels: vec![0],
-                time_range_indicator: TimeRangeIndicator::Instant,
-                byte_index: 0,
-            },
-            MessageInfo {
-                code: ParameterCode::new(81),
-                short_name: "LAND".to_string(),
-                description: "Landcover".to_string(),
-                units: "Proportion".to_string(),
-                level_type: LevelType::HeightAboveGround,
-                levels: vec![0],
-                time_range_indicator: TimeRangeIndicator::Instant,
-                byte_index: 0,
-            },
-            MessageInfo {
-                code: ParameterCode::new(111),
-                short_name: "NSWRS".to_string(),
-                description: "Net short-wave radiation flux (surface)".to_string(),
-                units: "W m-2".to_string(),
-                level_type: LevelType::HeightAboveGround,
-                levels: vec![0],
-                time_range_indicator: TimeRangeIndicator::AccumulatedOverForecastPeriod,
-                byte_index: 0,
-            },
-            MessageInfo {
-                code: ParameterCode::new(112),
-                short_name: "NLWRS".to_string(),
-                description: "Net long-wave radiation flux (surface)".to_string(),
-                units: "W m-2".to_string(),
-                level_type: LevelType::HeightAboveGround,
-                levels: vec![0],
-                time_range_indicator: TimeRangeIndicator::AccumulatedOverForecastPeriod,
-                byte_index: 0,
-            },
-            MessageInfo {
-                code: ParameterCode::new(117),
-                short_name: "GRAD".to_string(),
-                description: "Global radiation flux".to_string(),
-                units: "W m-2".to_string(),
-                level_type: LevelType::HeightAboveGround,
-                levels: vec![0],
-                time_range_indicator: TimeRangeIndicator::AccumulatedOverForecastPeriod,
-                byte_index: 0,
-            },
-            MessageInfo {
-                code: ParameterCode::new(122),
-                short_name: "SHTFL".to_string(),
-                description: "Sensible heat flux".to_string(),
-                units: "W m-2".to_string(),
-                level_type: LevelType::HeightAboveGround,
-                levels: vec![0],
-                time_range_indicator: TimeRangeIndicator::AccumulatedOverForecastPeriod,
-                byte_index: 0,
-            },
-            MessageInfo {
-                code: ParameterCode::new(132),
-                short_name: "LHTFL".to_string(),
-                description: "Latent heat flux through evaporation".to_string(),
-                units: "W m-2".to_string(),
-                level_type: LevelType::HeightAboveGround,
-                levels: vec![0],
-                time_range_indicator: TimeRangeIndicator::AccumulatedOverForecastPeriod,
-                byte_index: 0,
-            },
-            MessageInfo {
-                code: ParameterCode::new(162),
-                short_name: "CSULF".to_string(),
-                description: "U-momentum of gusts out of the model".to_string(),
-                units: "m s-1".to_string(),
-                level_type: LevelType::HeightAboveGround,
-                levels: vec![10],
-                time_range_indicator: TimeRangeIndicator::AccumulatedOverPeriodPart,
-                byte_index: 0,
-            },
-            MessageInfo {
-                code: ParameterCode::new(163),
-                short_name: "CSDLF".to_string(),
-                description: "V-momentum of gusts out of the model".to_string(),
-                units: "m s-1".to_string(),
-                level_type: LevelType::HeightAboveGround,
-                levels: vec![10],
-                time_range_indicator: TimeRangeIndicator::AccumulatedOverPeriodPart,
-                byte_index: 0,
-            },
-            MessageInfo {
-                code: ParameterCode::new(181),
-                short_name: "LPSX".to_string(),
-                description: "Cumulative sum rain".to_string(),
-                units: "kg m-2".to_string(),
-                level_type: LevelType::HeightAboveGround,
-                levels: vec![0],
-                time_range_indicator: TimeRangeIndicator::AccumulatedOverForecastPeriod,
-                byte_index: 0,
-            },
-            MessageInfo {
-                code: ParameterCode::new(181),
-                short_name: "LPSX".to_string(),
-                description: "Rain".to_string(),
-                units: "kg m-2".to_string(),
-                level_type: LevelType::HeightAboveGround,
-                levels: vec![0],
-                time_range_indicator: TimeRangeIndicator::Instant,
-                byte_index: 0,
-            },
-            MessageInfo {
-                code: ParameterCode::new(184),
-                short_name: "HGTY".to_string(),
-                description: "Cumulative sum snow".to_string(),
-                units: "kg m-2".to_string(),
-                level_type: LevelType::HeightAboveGround,
-                levels: vec![0],
-                time_range_indicator: TimeRangeIndicator::AccumulatedOverForecastPeriod,
-                byte_index: 0,
-            },
-            MessageInfo {
-                code: ParameterCode::new(184),
-                short_name: "HGTY".to_string(),
-                description: "Snow".to_string(),
-                units: "kg m-2".to_string(),
-                level_type: LevelType::HeightAboveGround,
-                levels: vec![0],
-                time_range_indicator: TimeRangeIndicator::Instant,
-                byte_index: 0,
-            },
-            MessageInfo {
-                code: ParameterCode::new(186),
-                short_name: "ICNG".to_string(),
-                description: "Cloud base".to_string(),
-                units: "m".to_string(),
-                level_type: LevelType::EntireAtmosphere,
-                levels: vec![0],
-                time_range_indicator: TimeRangeIndicator::Instant,
-                byte_index: 0,
-            },
-            MessageInfo {
-                code: ParameterCode::new(201),
-                short_name: "ICWAT".to_string(),
-                description: "Cumulative sum graupel".to_string(),
-                units: "kg m-2".to_string(),
-                level_type: LevelType::HeightAboveGround,
-                levels: vec![0],
-                time_range_indicator: TimeRangeIndicator::AccumulatedOverForecastPeriod,
-                byte_index: 0,
-            },
-            MessageInfo {
-                code: ParameterCode::new(201),
-                short_name: "ICWAT".to_string(),
-                description: "Graupel".to_string(),
-                units: "kg m-2".to_string(),
-                level_type: LevelType::HeightAboveGround,
-                levels: vec![0],
-                time_range_indicator: TimeRangeIndicator::Instant,
-                byte_index: 0,
-            },
-            MessageInfo {
-                code: ParameterCode::new(201),
-                short_name: "ICWAT".to_string(),
-                description: "Column integrated graupel".to_string(),
-                units: "kg m-2".to_string(),
-                level_type: LevelType::EntireAtmosphere,
-                levels: vec![0],
-                time_range_indicator: TimeRangeIndicator::Instant,
-                byte_index: 0,
-            },
-        ];
-
-        // Insert each parameter into the table
-        for param in parameters {
-            for &level in &param.levels {
-                table.insert(
-                    (
-                        param.code.0,
-                        param.level_type as u8,
-                        level,
-                        param.time_range_indicator as u8,
-                    ),
-                    param.clone(), // Clone to insert into the table
-                );
-            }
-        }
-
-        GRIBInfo { table }
-    }
-
-    pub fn get_parameter_info(
-        &mut self,
-        code: u8,
-        level_type: u8,
-        level: u16,
-        time_range_indicator: u8,
-    ) -> Option<&mut MessageInfo> {
-        let k = &(code, level_type, level, time_range_indicator);
-        self.table.get_mut(k)
-    }
-}
 
 #[derive(Debug)]
 pub struct IndicatorSection {
@@ -506,7 +70,8 @@ impl ProductDefinitionSection {
 
 #[derive(Debug)]
 pub struct GridIdentificationSection {
-    pub grid_code: u8,
+    pub pv_location: u8,
+    pub data_representation_type: u8,
     pub latitude_south: f32,
     pub longitude_west: f32,
     pub latitude_north: f32,
@@ -515,10 +80,30 @@ pub struct GridIdentificationSection {
     pub number_of_longitude_points: u16,
     pub latitude_spacing: f32,
     pub longitude_spacing: f32,
+    pub scanning_mode: u8,
+    pub value_count: u32,
+}
+
+impl Default for GridIdentificationSection {
+    fn default() -> Self {
+        GridIdentificationSection {
+            pv_location: 33,
+            data_representation_type: 0,
+            latitude_south: 49.000004,
+            longitude_west: 0.0,
+            latitude_north: 56.002003,
+            longitude_east: 11.281,
+            number_of_latitude_points: 390,
+            number_of_longitude_points: 390,
+            latitude_spacing: 0.017999997,
+            longitude_spacing: 0.029000001,
+            scanning_mode: 64,
+            value_count: 152100,
+        }
+    }
 }
 
 #[derive(Debug)]
-///Bit-map section
 pub struct BitmapSection {
     pub number_of_unused_bits_at_end_of_section3: u8,
     pub table_reference: u16,
@@ -529,6 +114,10 @@ pub struct GribFile<R> {
     reader: R,
     file_size: u64,
     table: GRIBInfo,
+    grid: GridIdentificationSection,
+    length_indicator: usize,
+    length_pds: usize,
+    length_gds: usize,
 }
 
 fn read_f32_ibm(data: &[u8]) -> f32 {
@@ -547,14 +136,6 @@ fn read_i16_be(array: &[u8]) -> i16 {
     val
 }
 
-// fn read_i24_be(array: &[u8]) -> i32 {
-//     let mut val = (array[2] as i32) + ((array[1] as i32) << 8) + (((array[0] & 127) as i32) << 16);
-//     if array[0] & 0x80 > 0 {
-//         val = -val;
-//     }
-//     val
-// }
-
 fn read_u16_be(array: &[u8]) -> u16 {
     (array[1] as u16) + ((array[0] as u16) << 8)
 }
@@ -567,11 +148,19 @@ impl GribFile<File> {
     pub fn open<P: AsRef<Path>>(path: P) -> io::Result<GribFile<File>> {
         let file = File::open(path)?;
         let file_size = file.metadata()?.len();
-        Ok(GribFile {
+
+        let mut grib_file = GribFile {
             reader: file,
             file_size,
             table: GRIBInfo::new(),
-        })
+            grid: GridIdentificationSection::default(),
+            length_indicator: 8,
+            length_pds: 28,
+            length_gds: 760,
+        };
+        grib_file.create_index(0);
+
+        Ok(grib_file)
     }
 
     fn read_exact_buffer(&mut self, len: usize) -> io::Result<Vec<u8>> {
@@ -641,7 +230,8 @@ impl GribFile<File> {
         let len = self.get_length();
         let buffer = self.read_exact_buffer(len)?;
 
-        let grid_code = buffer[5];
+        let pv_location = buffer[4];
+        let data_representation_type = buffer[5];
         let number_of_latitude_points = u16::from_be_bytes([buffer[6], buffer[7]]);
         let number_of_longitude_points = u16::from_be_bytes([buffer[8], buffer[9]]);
         let latitude_south =
@@ -656,9 +246,12 @@ impl GribFile<File> {
             (latitude_north - latitude_south) / (number_of_latitude_points as f32 - 1.0);
         let longitude_spacing =
             (longitude_east - longitude_west) / (number_of_longitude_points as f32 - 1.0);
+        let scanning_mode = buffer[27];
+        let value_count = number_of_latitude_points as u32 * number_of_longitude_points as u32;
 
         Ok(Some(GridIdentificationSection {
-            grid_code,
+            pv_location,
+            data_representation_type,
             latitude_south,
             longitude_west,
             latitude_north,
@@ -667,6 +260,8 @@ impl GribFile<File> {
             number_of_longitude_points,
             latitude_spacing,
             longitude_spacing,
+            scanning_mode,
+            value_count,
         }))
     }
 
@@ -745,15 +340,16 @@ impl GribFile<File> {
         &mut self,
         has_bmp: bool,
         index: usize,
-        value_count: usize,
+        locations: Option<&Vec<(f32, f32)>>,
     ) -> io::Result<()> {
-        // move to the start of the section
-        self.reader.seek(SeekFrom::Start(index as u64)).unwrap();
+        let bds_index = index + self.length_indicator + self.length_pds + self.length_gds;
+        self.reader.seek(SeekFrom::Start(bds_index as u64)).unwrap();
 
-        let mut bitmap: Option<BitmapSection> = None;
-        if has_bmp {
-            bitmap = Some(self.read_bitmap_section());
-        }
+        let bitmap = if has_bmp {
+            Some(self.read_bitmap_section())
+        } else {
+            None
+        };
 
         let len = self.get_length();
         let buffer = self.read_exact_buffer(len)?;
@@ -763,51 +359,118 @@ impl GribFile<File> {
 
         let mut r = BitReader::endian(Cursor::new(&buffer[11..]), BigEndian);
         let mut result = vec![];
-        let mut iterations = 0;
-        let base: f32 = 2.0;
-        let factor = base.powf(binary_scale as f32);
 
-        let mut bitmap_reader = None;
-        if bitmap.is_some() {
-            bitmap_reader = Some(BitReader::endian(
-                Cursor::new(&bitmap.as_ref().unwrap().bmp),
-                BigEndian,
-            ));
-        }
+        let factor = (2.0f32).powf(binary_scale as f32);
 
-        while iterations < value_count {
-            if has_bmp {
-                let present = match bitmap_reader.as_mut().unwrap().read_bit() {
-                    Ok(val) => val,
-                    Err(err) => {
-                        println!("Bitmap reader error {:?}", err);
-                        false
-                    }
-                };
+        let mut bitmap_reader = bitmap
+            .as_ref()
+            .map(|bmp| BitReader::endian(Cursor::new(bmp.bmp.as_slice()), BigEndian));
 
-                if !present {
-                    result.push(0.0);
-                    iterations += 1;
-                    continue;
-                }
-            }
-
-            match r.read::<u32>(bit_count as u32) {
-                Ok(x) => {
-                    let y = ref_value + (x as f32) * factor;
-                    result.push(y);
-                }
-                Err(_) => {
-                    println!("Error reading value");
-                    break;
-                }
-            };
-
-            iterations += 1;
-        }
+        // Decide which read strategy to use
+        match locations {
+            Some(locs) => self.read_selected_locations(
+                &mut r,
+                &mut bitmap_reader,
+                &mut result,
+                locs,
+                has_bmp,
+                bit_count,
+                ref_value,
+                factor,
+            ),
+            None => self.read_all_values(
+                &mut r,
+                &mut bitmap_reader,
+                &mut result,
+                has_bmp,
+                bit_count,
+                ref_value,
+                factor,
+            ),
+        }?;
 
         println!("{:?}", result);
 
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn read_selected_locations(
+        &self,
+        r: &mut BitReader<Cursor<&[u8]>, BigEndian>,
+        bitmap_reader: &mut Option<BitReader<Cursor<&[u8]>, BigEndian>>,
+        result: &mut Vec<f32>,
+        locations: &Vec<(f32, f32)>,
+        has_bmp: bool,
+        bit_count: u8,
+        ref_value: f32,
+        factor: f32,
+    ) -> io::Result<()> {
+        for (lon, lat) in locations {
+            let value_index = self.closest_lon_lat_idx(lon, lat);
+            let skip_bits = value_index * (bit_count as usize);
+
+            if has_bmp && !self.is_value_present(bitmap_reader, skip_bits)? {
+                result.push(0.0);
+                continue;
+            }
+
+            self.read_and_push_value(r, result, skip_bits, bit_count, ref_value, factor)?;
+        }
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn read_all_values(
+        &self,
+        r: &mut BitReader<Cursor<&[u8]>, BigEndian>,
+        bitmap_reader: &mut Option<BitReader<Cursor<&[u8]>, BigEndian>>,
+        result: &mut Vec<f32>,
+        has_bmp: bool,
+        bit_count: u8,
+        ref_value: f32,
+        factor: f32,
+    ) -> io::Result<()> {
+        let value_count = self.grid.value_count as usize;
+        for _ in 0..value_count {
+            if has_bmp && !self.is_value_present(bitmap_reader, 0)? {
+                result.push(0.0);
+                continue;
+            }
+
+            self.read_and_push_value(r, result, 0, bit_count, ref_value, factor)?;
+        }
+        Ok(())
+    }
+
+    fn is_value_present(
+        &self,
+        bitmap_reader: &mut Option<BitReader<Cursor<&[u8]>, BigEndian>>,
+        skip_bits: usize,
+    ) -> io::Result<bool> {
+        if let Some(reader) = bitmap_reader {
+            reader.skip(skip_bits as u32)?;
+            return reader.read_bit();
+        }
+        Ok(true)
+    }
+
+    fn read_and_push_value(
+        &self,
+        r: &mut BitReader<Cursor<&[u8]>, BigEndian>,
+        result: &mut Vec<f32>,
+        skip_bits: usize,
+        bit_count: u8,
+        ref_value: f32,
+        factor: f32,
+    ) -> io::Result<()> {
+        r.skip(skip_bits as u32)?;
+        match r.read::<u32>(bit_count as u32) {
+            Ok(x) => result.push(ref_value + (x as f32) * factor),
+            Err(_) => {
+                println!("Error reading value");
+            }
+        }
         Ok(())
     }
 
@@ -817,41 +480,63 @@ impl GribFile<File> {
     // If someone wants to read all messages this doesn't slow it down
     // since we are not reading the sections multiple times and can skip around in our reader
     // using the indexes.
-    pub fn index(&mut self, index: u64) {
-        self.reader.seek(SeekFrom::Start(index)).unwrap();
-        let mut next = 0;
+    fn create_index(&mut self, start_index: u64) {
+        let mut stack = vec![start_index];
 
-        if let Some(indicator) = self.read_indicator_section().unwrap() {
-            next = index + indicator.section_length as u64;
+        while let Some(index) = stack.pop() {
+            self.reader.seek(SeekFrom::Start(index)).unwrap();
+            let mut next = 0;
 
-            if let Some(pds) = self.read_product_definition_section().unwrap() {
-                let table_info = self.table.get_parameter_info(
-                    pds.parameter_code,
-                    pds.level_type,
-                    pds.level,
-                    pds.time_range_indicator,
-                );
+            if let Some(indicator) = self.read_indicator_section().unwrap() {
+                next = index + indicator.section_length as u64;
 
-                if let Some(info) = table_info {
-                    info.set_byte_index(index as usize);
+                if let Some(pds) = self.read_product_definition_section().unwrap() {
+                    if let Some(info) = self.table.get_parameter_info(
+                        pds.parameter_code,
+                        pds.level_type,
+                        pds.level,
+                        pds.time_range_indicator,
+                    ) {
+                        info.set_byte_index(index as usize);
+                    }
                 }
             }
-        }
 
-        if next < self.file_size {
-            self.index(next);
+            if next < self.file_size {
+                stack.push(next); // Push the next index onto the stack
+            }
         }
     }
 
-    pub fn read_grib_file_2(&mut self) {
-        self.index(0);
+    /// Find the index of the closest longitude and latitude point in the grid
+    /// to the given longitude and latitude
+    pub fn closest_lon_lat_idx(&self, lon: &f32, lat: &f32) -> usize {
+        let lon_idx =
+            ((lon - self.grid.longitude_west) / self.grid.longitude_spacing).round() as isize;
+        let lat_idx =
+            ((lat - self.grid.latitude_south) / self.grid.latitude_spacing).round() as isize;
 
-        let pi_tmp = self.table.get_parameter_info(11, 105, 0, 0).unwrap();
-        let b_index = pi_tmp.byte_index;
-        let bds_index = b_index + 8 + 28 + 760; // start msg + indicator + pds + gds
-                                                //let value_count = 152100;
-        let value_count = 50;
-        self.read_bds_section_from(false, bds_index, value_count)
+        //clamp to grid
+        let lon_idx =
+            lon_idx.clamp(0, (self.grid.number_of_longitude_points as isize) - 1) as usize;
+        let lat_idx = lat_idx.clamp(0, (self.grid.number_of_latitude_points as isize) - 1) as usize;
+
+        //return computed 1d index based on scanning mode
+        lat_idx * self.grid.number_of_longitude_points as usize + lon_idx
+    }
+
+    pub fn read_grib_file_2(&mut self) {
+        // Test read temp at level 0 and 50
+        let locations = vec![(5.351926, 51.716_8)];
+
+        let pi_tmp_0 = self.table.get_parameter_info(11, 105, 0, 0).unwrap();
+        let b_index_0 = pi_tmp_0.byte_index;
+        self.read_bds_section_from(false, b_index_0, Some(&locations))
+            .unwrap();
+
+        let pi_tmp_50 = self.table.get_parameter_info(11, 105, 50, 0).unwrap();
+        let b_index_50 = pi_tmp_50.byte_index;
+        self.read_bds_section_from(false, b_index_50, Some(&locations))
             .unwrap();
     }
 
@@ -879,7 +564,7 @@ impl GribFile<File> {
 
                 let gds = self.read_grid_identification_section()?;
                 if let Some(grid) = gds {
-                    //     println!("{:#?}", grid);
+                    println!("{:#?}", grid);
                     let mut bitmap: Option<BitmapSection> = None;
                     if pds.has_bmp() {
                         bitmap = Some(self.read_bitmap_section());
@@ -915,8 +600,13 @@ mod tests {
 
     #[test]
     fn test_load_grib_file() {
+        // time function
+
+        let start = std::time::Instant::now();
         let grib_file = GribFile::open("../example_data/HA43_N20_202412221800_00000_GB");
         grib_file.unwrap().read_grib_file_2();
+        let duration = start.elapsed();
+        println!("Time elapsed in read_grib_file_2() is: {:?}", duration);
         //grib_file.unwrap().read_grib_file(0);
         assert_eq!(1, 1);
     }
