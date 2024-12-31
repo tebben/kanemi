@@ -7,6 +7,11 @@ impl ParameterCode {
     pub fn new(code: u8) -> Self {
         ParameterCode(code)
     }
+
+    // Getter method to retrieve the inner value
+    pub fn value(&self) -> u8 {
+        self.0
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
@@ -58,6 +63,7 @@ pub struct MessageInfo {
     pub level_type: LevelType,
     pub levels: Vec<u16>,
     pub time_range_indicator: TimeRangeIndicator,
+    pub has_bmp: bool,
     pub byte_index: usize,
 }
 
@@ -67,8 +73,10 @@ impl MessageInfo {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct GRIBInfo {
     table: HashMap<(u8, u8, u16, u8), MessageInfo>,
+    name_lookup: HashMap<(String, u16), (u8, u8, u16, u8)>,
 }
 
 impl Default for GRIBInfo {
@@ -80,346 +88,381 @@ impl Default for GRIBInfo {
 impl GRIBInfo {
     pub fn new() -> Self {
         let mut table = HashMap::new();
+        let mut name_lookup = HashMap::new();
 
         let parameters = vec![
             MessageInfo {
                 code: ParameterCode::new(1),
-                short_name: "PMSL".to_string(),
+                short_name: "pmsl".to_string(),
                 description: "Pressure altitude above mean sea level".to_string(),
                 units: "Pa".to_string(),
                 level_type: LevelType::AltitudeAboveSeaLevel,
                 levels: vec![0],
                 time_range_indicator: TimeRangeIndicator::Instant,
+                has_bmp: false,
                 byte_index: 0,
             },
             MessageInfo {
                 code: ParameterCode::new(1),
-                short_name: "PSRF".to_string(),
+                short_name: "psrf".to_string(),
                 description: "Pressure height above ground".to_string(),
                 units: "Pa".to_string(),
                 level_type: LevelType::HeightAboveGround,
                 levels: vec![0],
                 time_range_indicator: TimeRangeIndicator::Instant,
+                has_bmp: false,
                 byte_index: 0,
             },
             MessageInfo {
                 code: ParameterCode::new(6),
-                short_name: "GP".to_string(),
+                short_name: "gp".to_string(),
                 description: "Geopotential".to_string(),
                 units: "m2 s-2".to_string(),
                 level_type: LevelType::HeightAboveGround,
                 levels: vec![0],
                 time_range_indicator: TimeRangeIndicator::Instant,
+                has_bmp: false,
                 byte_index: 0,
             },
             MessageInfo {
                 code: ParameterCode::new(11),
-                short_name: "TMP".to_string(),
+                short_name: "tmp".to_string(),
                 description: "Temperature".to_string(),
                 units: "K".to_string(),
                 level_type: LevelType::HeightAboveGround,
                 levels: vec![0, 2, 50, 100, 200, 300],
                 time_range_indicator: TimeRangeIndicator::Instant,
+                has_bmp: false,
                 byte_index: 0,
             },
             MessageInfo {
                 code: ParameterCode::new(11),
-                short_name: "ISBA".to_string(),
+                short_name: "isba".to_string(),
                 description: "Temperature of nature tile".to_string(),
                 units: "K".to_string(),
                 level_type: LevelType::HeightAboveGround,
                 levels: vec![800, 801, 802],
                 time_range_indicator: TimeRangeIndicator::Instant,
+                has_bmp: true,
                 byte_index: 0,
             },
             MessageInfo {
                 code: ParameterCode::new(17),
-                short_name: "DPT".to_string(),
+                short_name: "dpt".to_string(),
                 description: "Dew-point temperature".to_string(),
                 units: "K".to_string(),
                 level_type: LevelType::HeightAboveGround,
                 levels: vec![2],
                 time_range_indicator: TimeRangeIndicator::Instant,
+                has_bmp: false,
                 byte_index: 0,
             },
             MessageInfo {
                 code: ParameterCode::new(20),
-                short_name: "VIS".to_string(),
+                short_name: "vis".to_string(),
                 description: "Visibility".to_string(),
                 units: "m".to_string(),
                 level_type: LevelType::HeightAboveGround,
                 levels: vec![0],
                 time_range_indicator: TimeRangeIndicator::Instant,
+                has_bmp: false,
                 byte_index: 0,
             },
             MessageInfo {
                 code: ParameterCode::new(33),
-                short_name: "UGRD".to_string(),
+                short_name: "ugrd".to_string(),
                 description: "u-component of wind".to_string(),
                 units: "m s-1".to_string(),
                 level_type: LevelType::HeightAboveGround,
                 levels: vec![10, 50, 100, 200, 300],
                 time_range_indicator: TimeRangeIndicator::Instant,
+                has_bmp: false,
                 byte_index: 0,
             },
             MessageInfo {
                 code: ParameterCode::new(34),
-                short_name: "VGRD".to_string(),
+                short_name: "vgrd".to_string(),
                 description: "v-component of wind".to_string(),
                 units: "m s-1".to_string(),
                 level_type: LevelType::HeightAboveGround,
                 levels: vec![10, 50, 100, 200, 300],
                 time_range_indicator: TimeRangeIndicator::Instant,
+                has_bmp: false,
                 byte_index: 0,
             },
             MessageInfo {
                 code: ParameterCode::new(52),
-                short_name: "RH".to_string(),
+                short_name: "rh".to_string(),
                 description: "Relative humidity".to_string(),
                 units: "%".to_string(),
                 level_type: LevelType::HeightAboveGround,
                 levels: vec![2],
                 time_range_indicator: TimeRangeIndicator::Instant,
+                has_bmp: false,
                 byte_index: 0,
             },
             MessageInfo {
                 code: ParameterCode::new(61),
-                short_name: "APCP".to_string(),
+                short_name: "apcp".to_string(),
                 description: "Total precipitation".to_string(),
                 units: "kg m-2".to_string(),
                 level_type: LevelType::HeightAboveGround,
                 levels: vec![0],
                 time_range_indicator: TimeRangeIndicator::AccumulatedOverForecastPeriod,
+                has_bmp: false,
                 byte_index: 0,
             },
             MessageInfo {
                 code: ParameterCode::new(65),
-                short_name: "WEASD".to_string(),
+                short_name: "weasd".to_string(),
                 description: "Water equivalent of accumulated snow depth".to_string(),
                 units: "kg m-2".to_string(),
                 level_type: LevelType::HeightAboveGround,
                 levels: vec![0],
                 time_range_indicator: TimeRangeIndicator::Instant,
+                has_bmp: false,
                 byte_index: 0,
             },
             MessageInfo {
                 code: ParameterCode::new(66),
-                short_name: "SD".to_string(),
+                short_name: "sd".to_string(),
                 description: "Snow depth".to_string(),
                 units: "m".to_string(),
                 level_type: LevelType::HeightAboveGround,
                 levels: vec![0],
                 time_range_indicator: TimeRangeIndicator::Instant,
+                has_bmp: true,
                 byte_index: 0,
             },
             MessageInfo {
                 code: ParameterCode::new(67),
-                short_name: "MIXHT".to_string(),
+                short_name: "mixht".to_string(),
                 description: "Mixed layer depth".to_string(),
                 units: "m".to_string(),
                 level_type: LevelType::HeightAboveGround,
                 levels: vec![0],
                 time_range_indicator: TimeRangeIndicator::Instant,
+                has_bmp: false,
                 byte_index: 0,
             },
             MessageInfo {
                 code: ParameterCode::new(71),
-                short_name: "TCDC".to_string(),
+                short_name: "tcdc".to_string(),
                 description: "Total cloud cover".to_string(),
                 units: "%".to_string(),
                 level_type: LevelType::HeightAboveGround,
                 levels: vec![0],
                 time_range_indicator: TimeRangeIndicator::Instant,
+                has_bmp: false,
                 byte_index: 0,
             },
             MessageInfo {
                 code: ParameterCode::new(73),
-                short_name: "LCDC".to_string(),
+                short_name: "lcdc".to_string(),
                 description: "Low cloud cover".to_string(),
                 units: "%".to_string(),
                 level_type: LevelType::HeightAboveGround,
                 levels: vec![0],
                 time_range_indicator: TimeRangeIndicator::Instant,
+                has_bmp: false,
                 byte_index: 0,
             },
             MessageInfo {
                 code: ParameterCode::new(74),
-                short_name: "MCDC".to_string(),
+                short_name: "mcdc".to_string(),
                 description: "Medium cloud cover".to_string(),
                 units: "%".to_string(),
                 level_type: LevelType::HeightAboveGround,
                 levels: vec![0],
                 time_range_indicator: TimeRangeIndicator::Instant,
+                has_bmp: false,
                 byte_index: 0,
             },
             MessageInfo {
                 code: ParameterCode::new(75),
-                short_name: "HCDC".to_string(),
+                short_name: "hcdc".to_string(),
                 description: "High cloud cover".to_string(),
                 units: "%".to_string(),
                 level_type: LevelType::HeightAboveGround,
                 levels: vec![0],
                 time_range_indicator: TimeRangeIndicator::Instant,
+                has_bmp: false,
                 byte_index: 0,
             },
             MessageInfo {
                 code: ParameterCode::new(81),
-                short_name: "LAND".to_string(),
+                short_name: "land".to_string(),
                 description: "Landcover".to_string(),
                 units: "Proportion".to_string(),
                 level_type: LevelType::HeightAboveGround,
                 levels: vec![0],
                 time_range_indicator: TimeRangeIndicator::Instant,
+                has_bmp: false,
                 byte_index: 0,
             },
             MessageInfo {
                 code: ParameterCode::new(111),
-                short_name: "NSWRS".to_string(),
+                short_name: "nswrs".to_string(),
                 description: "Net short-wave radiation flux (surface)".to_string(),
                 units: "W m-2".to_string(),
                 level_type: LevelType::HeightAboveGround,
                 levels: vec![0],
                 time_range_indicator: TimeRangeIndicator::AccumulatedOverForecastPeriod,
+                has_bmp: false,
                 byte_index: 0,
             },
             MessageInfo {
                 code: ParameterCode::new(112),
-                short_name: "NLWRS".to_string(),
+                short_name: "nlwrs".to_string(),
                 description: "Net long-wave radiation flux (surface)".to_string(),
                 units: "W m-2".to_string(),
                 level_type: LevelType::HeightAboveGround,
                 levels: vec![0],
                 time_range_indicator: TimeRangeIndicator::AccumulatedOverForecastPeriod,
+                has_bmp: false,
                 byte_index: 0,
             },
             MessageInfo {
                 code: ParameterCode::new(117),
-                short_name: "GRAD".to_string(),
+                short_name: "grad".to_string(),
                 description: "Global radiation flux".to_string(),
                 units: "W m-2".to_string(),
                 level_type: LevelType::HeightAboveGround,
                 levels: vec![0],
                 time_range_indicator: TimeRangeIndicator::AccumulatedOverForecastPeriod,
+                has_bmp: false,
                 byte_index: 0,
             },
             MessageInfo {
                 code: ParameterCode::new(122),
-                short_name: "SHTFL".to_string(),
+                short_name: "shtfl".to_string(),
                 description: "Sensible heat flux".to_string(),
                 units: "W m-2".to_string(),
                 level_type: LevelType::HeightAboveGround,
                 levels: vec![0],
                 time_range_indicator: TimeRangeIndicator::AccumulatedOverForecastPeriod,
+                has_bmp: false,
                 byte_index: 0,
             },
             MessageInfo {
                 code: ParameterCode::new(132),
-                short_name: "LHTFL".to_string(),
+                short_name: "lhtfl".to_string(),
                 description: "Latent heat flux through evaporation".to_string(),
                 units: "W m-2".to_string(),
                 level_type: LevelType::HeightAboveGround,
                 levels: vec![0],
                 time_range_indicator: TimeRangeIndicator::AccumulatedOverForecastPeriod,
+                has_bmp: false,
                 byte_index: 0,
             },
             MessageInfo {
                 code: ParameterCode::new(162),
-                short_name: "CSULF".to_string(),
+                short_name: "csulf".to_string(),
                 description: "U-momentum of gusts out of the model".to_string(),
                 units: "m s-1".to_string(),
                 level_type: LevelType::HeightAboveGround,
                 levels: vec![10],
                 time_range_indicator: TimeRangeIndicator::AccumulatedOverPeriodPart,
+                has_bmp: false,
                 byte_index: 0,
             },
             MessageInfo {
                 code: ParameterCode::new(163),
-                short_name: "CSDLF".to_string(),
+                short_name: "csdlf".to_string(),
                 description: "V-momentum of gusts out of the model".to_string(),
                 units: "m s-1".to_string(),
                 level_type: LevelType::HeightAboveGround,
                 levels: vec![10],
                 time_range_indicator: TimeRangeIndicator::AccumulatedOverPeriodPart,
+                has_bmp: false,
                 byte_index: 0,
             },
             MessageInfo {
                 code: ParameterCode::new(181),
-                short_name: "LPSX".to_string(),
+                short_name: "lpsxc".to_string(),
                 description: "Cumulative sum rain".to_string(),
                 units: "kg m-2".to_string(),
                 level_type: LevelType::HeightAboveGround,
                 levels: vec![0],
                 time_range_indicator: TimeRangeIndicator::AccumulatedOverForecastPeriod,
+                has_bmp: false,
                 byte_index: 0,
             },
             MessageInfo {
                 code: ParameterCode::new(181),
-                short_name: "LPSX".to_string(),
+                short_name: "lpsx".to_string(),
                 description: "Rain".to_string(),
                 units: "kg m-2".to_string(),
                 level_type: LevelType::HeightAboveGround,
                 levels: vec![0],
                 time_range_indicator: TimeRangeIndicator::Instant,
+                has_bmp: false,
                 byte_index: 0,
             },
             MessageInfo {
                 code: ParameterCode::new(184),
-                short_name: "HGTY".to_string(),
+                short_name: "hgtyc".to_string(),
                 description: "Cumulative sum snow".to_string(),
                 units: "kg m-2".to_string(),
                 level_type: LevelType::HeightAboveGround,
                 levels: vec![0],
                 time_range_indicator: TimeRangeIndicator::AccumulatedOverForecastPeriod,
+                has_bmp: false,
                 byte_index: 0,
             },
             MessageInfo {
                 code: ParameterCode::new(184),
-                short_name: "HGTY".to_string(),
+                short_name: "hgty".to_string(),
                 description: "Snow".to_string(),
                 units: "kg m-2".to_string(),
                 level_type: LevelType::HeightAboveGround,
                 levels: vec![0],
                 time_range_indicator: TimeRangeIndicator::Instant,
+                has_bmp: false,
                 byte_index: 0,
             },
             MessageInfo {
                 code: ParameterCode::new(186),
-                short_name: "ICNG".to_string(),
+                short_name: "icng".to_string(),
                 description: "Cloud base".to_string(),
                 units: "m".to_string(),
                 level_type: LevelType::EntireAtmosphere,
                 levels: vec![0],
                 time_range_indicator: TimeRangeIndicator::Instant,
+                has_bmp: true,
                 byte_index: 0,
             },
             MessageInfo {
                 code: ParameterCode::new(201),
-                short_name: "ICWAT".to_string(),
+                short_name: "icwatc".to_string(),
                 description: "Cumulative sum graupel".to_string(),
                 units: "kg m-2".to_string(),
                 level_type: LevelType::HeightAboveGround,
                 levels: vec![0],
                 time_range_indicator: TimeRangeIndicator::AccumulatedOverForecastPeriod,
+                has_bmp: false,
                 byte_index: 0,
             },
             MessageInfo {
                 code: ParameterCode::new(201),
-                short_name: "ICWAT".to_string(),
+                short_name: "icwat".to_string(),
                 description: "Graupel".to_string(),
                 units: "kg m-2".to_string(),
                 level_type: LevelType::HeightAboveGround,
                 levels: vec![0],
                 time_range_indicator: TimeRangeIndicator::Instant,
+                has_bmp: false,
                 byte_index: 0,
             },
             MessageInfo {
                 code: ParameterCode::new(201),
-                short_name: "ICWAT".to_string(),
+                short_name: "icwat".to_string(),
                 description: "Column integrated graupel".to_string(),
                 units: "kg m-2".to_string(),
                 level_type: LevelType::EntireAtmosphere,
                 levels: vec![0],
                 time_range_indicator: TimeRangeIndicator::Instant,
+                has_bmp: false,
                 byte_index: 0,
             },
         ];
@@ -436,20 +479,73 @@ impl GRIBInfo {
                     ),
                     param.clone(), // Clone to insert into the table
                 );
+
+                name_lookup.insert(
+                    (param.short_name.clone(), level),
+                    (
+                        param.code.0,
+                        param.level_type as u8,
+                        level,
+                        param.time_range_indicator as u8,
+                    ),
+                );
             }
         }
 
-        GRIBInfo { table }
+        GRIBInfo { table, name_lookup }
     }
 
-    pub fn get_parameter_info(
+    /// Set the byte index for a parameter
+    pub fn set_byte_index(
         &mut self,
         code: u8,
         level_type: u8,
         level: u16,
         time_range_indicator: u8,
-    ) -> Option<&mut MessageInfo> {
+        index: usize,
+    ) {
         let k = &(code, level_type, level, time_range_indicator);
-        self.table.get_mut(k)
+        if let Some(param) = self.table.get_mut(k) {
+            param.set_byte_index(index);
+        }
+    }
+
+    /// Get all parameters
+    pub fn get_all_parameters(&self) -> Vec<&MessageInfo> {
+        self.table.values().collect()
+    }
+
+    /// Get a parameter by code, level type, level, and time range indicator
+    pub fn get_parameter(
+        &self,
+        code: u8,
+        level_type: u8,
+        level: u16,
+        time_range_indicator: u8,
+    ) -> Option<&MessageInfo> {
+        let k = &(code, level_type, level, time_range_indicator);
+        self.table.get(k)
+    }
+
+    /// Get a parameter by name and level
+    pub fn get_parameter_by_name(&self, name: &str, level: u16) -> Option<&MessageInfo> {
+        let &(code, level_type, level, time_range_indicator) = self
+            .name_lookup
+            .get(&(name.to_lowercase().to_string(), level))?;
+        self.get_parameter(code, level_type, level, time_range_indicator)
+    }
+
+    pub fn get_parameters_by_name(
+        &self,
+        parameters: Option<&Vec<(&str, u16)>>,
+    ) -> Vec<&MessageInfo> {
+        if let Some(params) = parameters {
+            params
+                .iter()
+                .map(|(name, level)| self.get_parameter_by_name(name, *level).unwrap())
+                .collect()
+        } else {
+            self.get_all_parameters()
+        }
     }
 }

@@ -27,16 +27,17 @@
 //
 // ToDo:
 // - Test if location to index is correct
-// - Add if param has bmp
-// - Table lookup by name and level
+// [v] Add if param has bmp
+// [v] Table lookup by name and level
 // - Cleanup
 // - Add function to read given values all and at specific locations
 // - Error handling
 // - Tests
 // - Benchmarks
 
-use super::grib_info::GRIBInfo;
+use super::grib_info::{GRIBInfo, MessageInfo};
 use bitstream_io::{BigEndian, BitRead, BitReader};
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::Cursor;
 use std::io::{self, Read, Seek, SeekFrom};
@@ -116,13 +117,26 @@ pub struct BitmapSection {
 }
 
 pub struct GribFile<R> {
-    reader: R,
+    file: R,
     file_size: u64,
     table: GRIBInfo,
     grid: GridIdentificationSection,
     length_indicator: usize,
     length_pds: usize,
     length_gds: usize,
+}
+
+#[allow(dead_code)]
+struct Location {
+    pub lon: f32,
+    pub lat: f32,
+    pub index: usize,
+}
+
+impl Location {
+    fn new(lon: f32, lat: f32, index: usize) -> Location {
+        Location { lon, lat, index }
+    }
 }
 
 fn read_f32_ibm(data: &[u8]) -> f32 {
@@ -154,8 +168,8 @@ impl GribFile<File> {
         let file = File::open(path)?;
         let file_size = file.metadata()?.len();
 
-        let mut grib_file = GribFile {
-            reader: file,
+        let grib_file = GribFile {
+            file,
             file_size,
             table: GRIBInfo::new(),
             grid: GridIdentificationSection::default(),
@@ -163,14 +177,13 @@ impl GribFile<File> {
             length_pds: 28,
             length_gds: 760,
         };
-        grib_file.create_index(0);
 
         Ok(grib_file)
     }
 
     fn read_exact_buffer(&mut self, len: usize) -> io::Result<Vec<u8>> {
         let mut buffer = vec![0u8; len];
-        self.reader.read_exact(&mut buffer)?;
+        self.file.read_exact(&mut buffer)?;
         Ok(buffer)
     }
 
@@ -208,7 +221,6 @@ impl GribFile<File> {
     ) -> io::Result<Option<ProductDefinitionSection>> {
         let len = self.get_length();
         let buffer = self.read_exact_buffer(len)?;
-
         let section = ProductDefinitionSection {
             table_version_number: buffer[3],
             originating_center: buffer[4],
@@ -234,7 +246,6 @@ impl GribFile<File> {
     ) -> io::Result<Option<GridIdentificationSection>> {
         let len = self.get_length();
         let buffer = self.read_exact_buffer(len)?;
-
         let pv_location = buffer[4];
         let data_representation_type = buffer[5];
         let number_of_latitude_points = u16::from_be_bytes([buffer[6], buffer[7]]) as usize;
@@ -270,66 +281,6 @@ impl GribFile<File> {
         }))
     }
 
-    pub fn read_bds_section(
-        &mut self,
-        value_count: usize,
-        bitmap: &Option<BitmapSection>,
-    ) -> io::Result<()> {
-        let len = self.get_length();
-        let buffer = self.read_exact_buffer(len)?;
-        let binary_scale = read_i16_be(&buffer[4..]);
-        let ref_value = read_f32_ibm(&buffer[6..]);
-        let bit_count = buffer[10];
-
-        let mut r = BitReader::endian(Cursor::new(&buffer[11..]), BigEndian);
-        let mut result = vec![];
-        let mut iterations = 0;
-        let base: f32 = 2.0;
-        let factor = base.powf(binary_scale as f32);
-
-        let mut bitmap_reader = None;
-        let uses_bitmap = bitmap.is_some();
-        if uses_bitmap {
-            bitmap_reader = Some(BitReader::endian(
-                Cursor::new(&bitmap.as_ref().unwrap().bmp),
-                BigEndian,
-            ));
-        }
-
-        while iterations < value_count {
-            if uses_bitmap {
-                let present = match bitmap_reader.as_mut().unwrap().read_bit() {
-                    Ok(val) => val,
-                    Err(err) => {
-                        println!("Bitmap reader error {:?}", err);
-                        false
-                    }
-                };
-
-                if !present {
-                    result.push(0.0);
-                    iterations += 1;
-                    continue;
-                }
-            }
-
-            match r.read::<u32>(bit_count as u32) {
-                Ok(x) => {
-                    let y = ref_value + (x as f32) * factor;
-                    result.push(y);
-                }
-                Err(_) => {
-                    println!("Error reading value");
-                    break;
-                }
-            };
-
-            iterations += 1;
-        }
-
-        Ok(())
-    }
-
     fn read_bitmap_section(&mut self) -> BitmapSection {
         let len = self.get_length();
         let buffer = self.read_exact_buffer(len).unwrap();
@@ -341,14 +292,14 @@ impl GribFile<File> {
         }
     }
 
-    pub fn read_bds_section_from(
+    fn read_bds_section_from(
         &mut self,
         has_bmp: bool,
         index: usize,
-        locations: Option<&Vec<(f32, f32)>>,
+        locations: Option<&Vec<Location>>,
     ) -> io::Result<()> {
         let bds_index = index + self.length_indicator + self.length_pds + self.length_gds;
-        self.reader.seek(SeekFrom::Start(bds_index as u64)).unwrap();
+        self.file.seek(SeekFrom::Start(bds_index as u64)).unwrap();
 
         let bitmap = if has_bmp {
             Some(self.read_bitmap_section())
@@ -364,7 +315,6 @@ impl GribFile<File> {
 
         let mut r = BitReader::endian(Cursor::new(&buffer[11..]), BigEndian);
         let mut result = vec![];
-
         let factor = (2.0f32).powf(binary_scale as f32);
 
         let mut bitmap_reader = bitmap
@@ -394,8 +344,6 @@ impl GribFile<File> {
             ),
         }?;
 
-        println!("{:?}", result);
-
         Ok(())
     }
 
@@ -405,15 +353,15 @@ impl GribFile<File> {
         r: &mut BitReader<Cursor<&[u8]>, BigEndian>,
         bitmap_reader: &mut Option<BitReader<Cursor<&[u8]>, BigEndian>>,
         result: &mut Vec<f32>,
-        locations: &Vec<(f32, f32)>,
+        locations: &Vec<Location>,
         has_bmp: bool,
         bit_count: u8,
         ref_value: f32,
         factor: f32,
     ) -> io::Result<()> {
-        for (lon, lat) in locations {
-            let value_index = self.closest_lon_lat_idx(lon, lat);
-            let skip_bits = value_index * (bit_count as usize);
+        for loc in locations {
+            // bitreader index for location index
+            let skip_bits = loc.index as u32 * bit_count as u32;
 
             if has_bmp && !self.is_value_present(bitmap_reader, skip_bits)? {
                 result.push(0.0);
@@ -451,10 +399,11 @@ impl GribFile<File> {
     fn is_value_present(
         &self,
         bitmap_reader: &mut Option<BitReader<Cursor<&[u8]>, BigEndian>>,
-        skip_bits: usize,
+        skip_bits: u32,
     ) -> io::Result<bool> {
         if let Some(reader) = bitmap_reader {
-            reader.skip(skip_bits as u32)?;
+            reader.seek_bits(SeekFrom::Start(0)).unwrap();
+            reader.skip(skip_bits)?;
             return reader.read_bit();
         }
         Ok(true)
@@ -464,53 +413,24 @@ impl GribFile<File> {
         &self,
         r: &mut BitReader<Cursor<&[u8]>, BigEndian>,
         result: &mut Vec<f32>,
-        skip_bits: usize,
+        skip_bits: u32,
         bit_count: u8,
         ref_value: f32,
         factor: f32,
     ) -> io::Result<()> {
-        r.skip(skip_bits as u32)?;
+        r.seek_bits(SeekFrom::Start(0)).unwrap();
+        r.skip(skip_bits)?;
         match r.read::<u32>(bit_count as u32) {
-            Ok(x) => result.push(ref_value + (x as f32) * factor),
+            Ok(x) => {
+                let value = ref_value + (x as f32) * factor;
+                //println!("value: {}", value);
+                result.push(value);
+            }
             Err(_) => {
                 println!("Error reading value");
             }
         }
         Ok(())
-    }
-
-    // we find indexes of all messages in the file and store them in the table
-    // after reading the indicator and product section we are not interested in this anymore
-    // after this we can skip easily to a specific message.
-    // If someone wants to read all messages this doesn't slow it down
-    // since we are not reading the sections multiple times and can skip around in our reader
-    // using the indexes.
-    fn create_index(&mut self, start_index: u64) {
-        let mut stack = vec![start_index];
-
-        while let Some(index) = stack.pop() {
-            self.reader.seek(SeekFrom::Start(index)).unwrap();
-            let mut next = 0;
-
-            if let Some(indicator) = self.read_indicator_section().unwrap() {
-                next = index + indicator.section_length as u64;
-
-                if let Some(pds) = self.read_product_definition_section().unwrap() {
-                    if let Some(info) = self.table.get_parameter_info(
-                        pds.parameter_code,
-                        pds.level_type,
-                        pds.level,
-                        pds.time_range_indicator,
-                    ) {
-                        info.set_byte_index(index as usize);
-                    }
-                }
-            }
-
-            if next < self.file_size {
-                stack.push(next); // Push the next index onto the stack
-            }
-        }
     }
 
     /// Find the index of the closest longitude and latitude point in the grid
@@ -527,73 +447,105 @@ impl GribFile<File> {
             as usize;
 
         // Return computed 1D index based on scanning mode
-        lat_idx * self.grid.number_of_longitude_points as usize + lon_idx
+        lat_idx * self.grid.number_of_longitude_points + lon_idx
     }
 
-    pub fn read_grib_file_2(&mut self) {
-        // Test read temp at level 0 and 50
-        let locations = vec![(5.351926, 51.716_8)];
+    // we find indexes of all messages in the file and store them in the table
+    // after reading the indicator and product section we are not interested in this anymore
+    // after this we can skip easily to a specific message.
+    // If someone wants to read all messages this doesn't slow it down
+    // since we are not reading the sections multiple times and can skip around in our reader
+    // using the indexes.
+    fn create_index(&mut self, parameters: &Vec<&MessageInfo>) {
+        let mut stack = vec![0];
+        let target_params: HashSet<_> = parameters
+            .iter()
+            .map(|param| {
+                (
+                    param.code.value(),
+                    param.level_type as u8,
+                    param.time_range_indicator as u8,
+                )
+            })
+            .collect();
 
-        let pi_tmp_0 = self.table.get_parameter_info(11, 105, 0, 0).unwrap();
-        let b_index_0 = pi_tmp_0.byte_index;
-        self.read_bds_section_from(false, b_index_0, Some(&locations))
-            .unwrap();
+        let tartget_parameter_count = parameters.len();
+        let mut found_parameters = 0;
 
-        let pi_tmp_50 = self.table.get_parameter_info(11, 105, 50, 0).unwrap();
-        let b_index_50 = pi_tmp_50.byte_index;
-        self.read_bds_section_from(false, b_index_50, Some(&locations))
-            .unwrap();
-    }
+        while let Some(index) = stack.pop() {
+            self.file.seek(SeekFrom::Start(index)).unwrap();
 
-    pub fn read_grib_file(&mut self, start: u64) -> io::Result<()> {
-        self.reader.seek(SeekFrom::Start(start)).unwrap();
+            let mut next = 0;
 
-        let mut next = 0;
+            if let Some(indicator) = self.read_indicator_section().unwrap() {
+                next = index + indicator.section_length as u64;
 
-        if let Some(indicator) = self.read_indicator_section()? {
-            //println!("{:#?}", indicator);
-            next = start + indicator.section_length as u64;
+                if let Some(pds) = self.read_product_definition_section().unwrap() {
+                    if target_params.contains(&(
+                        pds.parameter_code,
+                        pds.level_type,
+                        pds.time_range_indicator,
+                    )) {
+                        found_parameters += 1;
 
-            if let Some(pds) = self.read_product_definition_section()? {
-                //println!("{:#?}", pds);
-                let table_info = self.table.get_parameter_info(
-                    pds.parameter_code,
-                    pds.level_type,
-                    pds.level,
-                    pds.time_range_indicator,
-                );
-                let _ = match table_info {
-                    Some(info) => info.short_name.clone(),
-                    None => "Unknown".to_string(),
-                };
+                        self.table.set_byte_index(
+                            pds.parameter_code,
+                            pds.level_type,
+                            pds.level,
+                            pds.time_range_indicator,
+                            index as usize,
+                        );
 
-                let gds = self.read_grid_identification_section()?;
-                if let Some(grid) = gds {
-                    println!("{:#?}", grid);
-                    let mut bitmap: Option<BitmapSection> = None;
-                    if pds.has_bmp() {
-                        bitmap = Some(self.read_bitmap_section());
+                        if found_parameters == tartget_parameter_count {
+                            return;
+                        }
+                    } else {
+                        // Optional: handle non-matching parameters differently if needed.
                     }
-
-                    let value_count = grid.number_of_latitude_points as usize
-                        * grid.number_of_longitude_points as usize;
-                    self.read_bds_section(value_count, &bitmap)?;
                 }
             }
-        }
 
-        if next < self.file_size {
-            self.read_grib_file(next)?;
+            if next < self.file_size {
+                stack.push(next); // Push the next index onto the stack
+            }
         }
+    }
 
-        Ok(())
+    // create locations from &Vec<(f64, f64)>
+    fn create_locations(&self, locations: Option<&Vec<(f32, f32)>>) -> Option<Vec<Location>> {
+        locations.map(|locs| {
+            locs.iter()
+                .map(|(lon, lat)| Location::new(*lon, *lat, self.closest_lon_lat_idx(lon, lat)))
+                .collect()
+        })
+    }
+
+    pub fn read_grib_file(
+        &mut self,
+        parameters: Option<&Vec<(&str, u16)>>,
+        locations: Option<&Vec<(f32, f32)>>,
+    ) {
+        // ToDo: refactor so we don't need to clone the table
+        let table_clone = self.table.clone();
+        let p = table_clone.get_parameters_by_name(parameters).clone();
+
+        self.create_index(&p);
+
+        let locations = self.create_locations(locations);
+
+        //iterate over all parameters and read bds
+        for param in p {
+            let has_bmp = param.has_bmp;
+            self.read_bds_section_from(has_bmp, param.byte_index, locations.as_ref())
+                .unwrap();
+        }
     }
 
     pub fn get_length(&mut self) -> usize {
         let mut buffer = [0u8; 3];
-        self.reader.read_exact(&mut buffer).unwrap();
+        self.file.read_exact(&mut buffer).unwrap();
         let len = read_u24_be(&buffer[..]) as usize;
-        self.reader.seek(SeekFrom::Current(-3)).unwrap();
+        self.file.seek(SeekFrom::Current(-3)).unwrap();
 
         len
     }
@@ -605,14 +557,164 @@ mod tests {
 
     #[test]
     fn test_load_grib_file() {
-        // time function
-
+        let parameters = vec![("tmp", 0)];
+        let locations = vec![(5.351926, 51.716_8)];
         let start = std::time::Instant::now();
+
         let grib_file = GribFile::open("../example_data/HA43_N20_202412221800_00000_GB");
-        grib_file.unwrap().read_grib_file_2();
+        grib_file
+            .unwrap()
+            .read_grib_file(Some(&parameters), Some(&locations));
         let duration = start.elapsed();
-        println!("Time elapsed in read_grib_file_2() is: {:?}", duration);
-        //grib_file.unwrap().read_grib_file(0);
+        println!("Time elapsed: {:?}", duration);
         assert_eq!(1, 1);
     }
 }
+
+/* pub fn read_grib_file(
+    &mut self,
+    parameters: Option<&Vec<(&str, u16)>>,
+    locations: Option<&Vec<(f32, f32)>>,
+) {
+    let parameters = self.table.get_parameters_by_name(parameters);
+    // convert locations to Location struct and get index
+    let locations = self.create_locations(locations);
+
+    // get a test parameter info
+    let parameter_info = self.table.get_parameter(11, 105, 0, 0).unwrap();
+    let test = Some(parameter_info.clone());
+    let result = self.get_values_naive(0, locations.as_ref(), test.as_ref());
+}
+
+fn get_values_naive(
+    &mut self,
+    start: u64,
+    locations: Option<&Vec<Location>>,
+    parameters: Option<&MessageInfo>,
+) -> io::Result<()> {
+    self.reader.seek(SeekFrom::Start(start)).unwrap();
+
+    let mut next = 0;
+
+    if let Some(indicator) = self.read_indicator_section()? {
+        next = start + indicator.section_length as u64;
+        if let Some(pds) = self.read_product_definition_section()? {
+            let table_info = self.table.get_parameter(
+                pds.parameter_code,
+                pds.level_type,
+                pds.level,
+                pds.time_range_indicator,
+            );
+
+            // continue if we don't have the parameter in our table
+            if table_info.is_none() {
+                return Ok(());
+            }
+
+            let table_info = table_info.unwrap();
+
+            if let Some(pi) = parameters {
+                if (pi.code != table_info.code)
+                    || (pi.level_type != table_info.level_type)
+                    || (pi.time_range_indicator != table_info.time_range_indicator)
+                    || (pds.level != 0)
+                {
+                    return Ok(());
+                }
+            }
+
+            let gds = self.read_grid_identification_section()?;
+            if let Some(grid) = gds {
+                // println!("{:#?}", grid);
+                let mut bitmap: Option<BitmapSection> = None;
+                if pds.has_bmp() {
+                    //println!("bmp {}", name);
+                    bitmap = Some(self.read_bitmap_section());
+                }
+
+                let value_count =
+                    grid.number_of_latitude_points * grid.number_of_longitude_points;
+
+                self.read_bds_section(value_count, &bitmap, locations)?;
+                return Ok(());
+            }
+        }
+    }
+    if next < self.file_size {
+        self.get_values_naive(next, locations, parameters)?;
+    }
+
+    Ok(())
+}
+
+fn read_bds_section(
+    &mut self,
+    value_count: usize,
+    bitmap: &Option<BitmapSection>,
+    locations: Option<&Vec<Location>>,
+) -> io::Result<()> {
+    let len = self.get_length();
+    let buffer = self.read_exact_buffer(len)?;
+    let binary_scale = read_i16_be(&buffer[4..]);
+    let ref_value = read_f32_ibm(&buffer[6..]);
+    let bit_count = buffer[10];
+
+    let mut r = BitReader::endian(Cursor::new(&buffer[11..]), BigEndian);
+    let mut result = vec![];
+    let mut iterations = 0;
+    let base: f32 = 2.0;
+    let factor = base.powf(binary_scale as f32);
+
+    let mut bitmap_reader = None;
+    let uses_bitmap = bitmap.is_some();
+    if uses_bitmap {
+        bitmap_reader = Some(BitReader::endian(
+            Cursor::new(&bitmap.as_ref().unwrap().bmp),
+            BigEndian,
+        ));
+    }
+
+    while iterations < value_count {
+        if uses_bitmap {
+            let present = match bitmap_reader.as_mut().unwrap().read_bit() {
+                Ok(val) => val,
+                Err(err) => {
+                    println!("Bitmap reader error {:?}", err);
+                    false
+                }
+            };
+
+            if !present {
+                result.push(0.0);
+                iterations += 1;
+                continue;
+            }
+        }
+
+        match r.read::<u32>(bit_count as u32) {
+            Ok(x) => {
+                if let Some(locs) = locations {
+                    // continue if there is no location at this interation index
+                    if locs.iter().find(|&loc| loc.index == iterations).is_none() {
+                        iterations += 1;
+                        continue;
+                    } else {
+                        let y = ref_value + (x as f32) * factor;
+
+                        result.push(y);
+                    }
+                }
+            }
+            Err(_) => {
+                println!("Error reading value");
+                break;
+            }
+        };
+
+        iterations += 1;
+    }
+
+    Ok(())
+}
+
+*/
