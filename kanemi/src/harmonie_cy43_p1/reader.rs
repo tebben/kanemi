@@ -316,7 +316,6 @@ impl GribFile<File> {
         let mut r = BitReader::endian(Cursor::new(&buffer[11..]), BigEndian);
         let mut result = vec![];
         let factor = (2.0f32).powf(binary_scale as f32);
-
         let mut bitmap_reader = bitmap
             .as_ref()
             .map(|bmp| BitReader::endian(Cursor::new(bmp.bmp.as_slice()), BigEndian));
@@ -360,12 +359,23 @@ impl GribFile<File> {
         factor: f32,
     ) -> io::Result<()> {
         for loc in locations {
-            // bitreader index for location index
-            let skip_bits = loc.index as u32 * bit_count as u32;
+            let mut skip_bits = loc.index as u32 * bit_count as u32;
 
-            if has_bmp && !self.is_value_present(bitmap_reader, skip_bits)? {
-                result.push(0.0);
-                continue;
+            if has_bmp {
+                let present =
+                    self.is_value_present_with_bds_index(bitmap_reader, loc.index as u32)?;
+                match present {
+                    (true, Some(bds_index)) => {
+                        skip_bits = bds_index as u32 * bit_count as u32;
+                    }
+                    (false, _) => {
+                        result.push(0.0);
+                        continue;
+                    }
+                    _ => {
+                        println!("Error reading value");
+                    }
+                }
             }
 
             self.read_and_push_value(r, result, skip_bits, bit_count, ref_value, factor)?;
@@ -386,9 +396,19 @@ impl GribFile<File> {
     ) -> io::Result<()> {
         let value_count = self.grid.value_count as usize;
         for _ in 0..value_count {
-            if has_bmp && !self.is_value_present(bitmap_reader, 0)? {
-                result.push(0.0);
-                continue;
+            if has_bmp {
+                let present = match bitmap_reader.as_mut().unwrap().read_bit() {
+                    Ok(val) => val,
+                    Err(err) => {
+                        println!("Bitmap reader error {:?}", err);
+                        false
+                    }
+                };
+
+                if !present {
+                    result.push(0.0);
+                    continue;
+                }
             }
 
             self.read_and_push_value(r, result, 0, bit_count, ref_value, factor)?;
@@ -396,17 +416,34 @@ impl GribFile<File> {
         Ok(())
     }
 
-    fn is_value_present(
+    // bmp contains if a value is present or not, since the index of a value changes when data is missing
+    // we need to find the correct index of a value in the BDS section
+    fn is_value_present_with_bds_index(
         &self,
         bitmap_reader: &mut Option<BitReader<Cursor<&[u8]>, BigEndian>>,
         skip_bits: u32,
-    ) -> io::Result<bool> {
+    ) -> io::Result<(bool, Option<usize>)> {
         if let Some(reader) = bitmap_reader {
-            reader.seek_bits(SeekFrom::Start(0)).unwrap();
-            reader.skip(skip_bits)?;
-            return reader.read_bit();
+            reader.seek_bits(SeekFrom::Start(0))?;
+
+            let mut bds_index = 0;
+
+            for _ in 0..skip_bits {
+                if reader.read_bit()? {
+                    bds_index += 1;
+                }
+            }
+
+            let value_present = reader.read_bit()?;
+
+            if !value_present {
+                return Ok((false, None));
+            }
+
+            Ok((true, Some(bds_index)))
+        } else {
+            Ok((true, Some(skip_bits as usize)))
         }
-        Ok(true)
     }
 
     fn read_and_push_value(
@@ -423,7 +460,7 @@ impl GribFile<File> {
         match r.read::<u32>(bit_count as u32) {
             Ok(x) => {
                 let value = ref_value + (x as f32) * factor;
-                //println!("value: {}", value);
+                println!("value: {}", value);
                 result.push(value);
             }
             Err(_) => {
@@ -463,6 +500,7 @@ impl GribFile<File> {
             .map(|param| {
                 (
                     param.code.value(),
+                    param.level,
                     param.level_type as u8,
                     param.time_range_indicator as u8,
                 )
@@ -483,6 +521,7 @@ impl GribFile<File> {
                 if let Some(pds) = self.read_product_definition_section().unwrap() {
                     if target_params.contains(&(
                         pds.parameter_code,
+                        pds.level,
                         pds.level_type,
                         pds.time_range_indicator,
                     )) {
@@ -533,6 +572,10 @@ impl GribFile<File> {
 
         let locations = self.create_locations(locations);
 
+        // refresh p with updated byte indexes
+        let table_clone = self.table.clone();
+        let p = table_clone.get_parameters_by_name(parameters).clone();
+
         //iterate over all parameters and read bds
         for param in p {
             let has_bmp = param.has_bmp;
@@ -555,21 +598,82 @@ impl GribFile<File> {
 mod tests {
     use super::*;
 
+    // grib_get tmp 0
+    // 5.351926 51.7168
+    // tmp, 0: 276.264
+    //
+    // 4.913082420058467, 52.3422859189378
+    // tmp, 0: 277.343
     #[test]
     fn test_load_grib_file() {
-        let parameters = vec![("tmp", 0)];
-        let locations = vec![(5.351926, 51.716_8)];
+        let parameters = vec![("isba", 802)];
+
+        //let locations = vec![(5.351926, 51.716_8), (4.913082420058467, 52.3422859189378)];
+        let locations = vec![(4.913082420058467, 52.3422859189378)];
         let start = std::time::Instant::now();
 
         let grib_file = GribFile::open("../example_data/HA43_N20_202412221800_00000_GB");
         grib_file
             .unwrap()
             .read_grib_file(Some(&parameters), Some(&locations));
+
         let duration = start.elapsed();
         println!("Time elapsed: {:?}", duration);
         assert_eq!(1, 1);
     }
 }
+
+/*
+1: 11 - 0
+2: 6 - 0
+3: 65 - 0
+4: 132 - 0
+5: 122 - 0
+6: 117 - 0
+7: 33 - 50
+8: 34 - 50
+9: 33 - 100
+10: 34 - 100
+11: 33 - 200
+12: 34 - 200
+13: 33 - 300
+14: 34 - 300
+15: 11 - 50
+16: 11 - 100
+17: 11 - 200
+18: 11 - 300
+19: 111 - 0
+20: 112 - 0
+21: 181 - 0
+22: 184 - 0
+23: 201 - 0
+24: 11 - 2
+25: 52 - 2
+26: 33 - 10
+27: 34 - 10
+28: 162 - 10
+29: 163 - 10
+30: 75 - 0
+31: 74 - 0
+32: 73 - 0
+33: 71 - 0
+34: 67 - 0
+35: 181 - 0
+36: 184 - 0
+37: 201 - 0
+38: 1 - 0
+39: 1 - 0
+40: 81 - 0
+41: 11 - 802
+42: 66 - 0
+43: 61 - 0
+44: 20 - 0
+45: 17 - 2
+46: 186 - 0
+47: 201 - 0
+48: 11 - 800
+49: 11 - 801
+*/
 
 /* pub fn read_grib_file(
     &mut self,
