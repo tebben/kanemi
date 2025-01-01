@@ -61,7 +61,7 @@ const PARAMETERS_SINGLE: &[(&str, u16)] = &[("tmp", 0)];
 
 fn read_grib_cy43_p1() {
     let grib_file = GribFile::open(FILE_PATH);
-    grib_file.unwrap().read_grib_file(
+    grib_file.unwrap().get(
         Some(&PARAMETERS_SINGLE.to_vec()),
         Some(&LOCATIONS_SINGLE.to_vec()),
     );

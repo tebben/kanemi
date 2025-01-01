@@ -42,6 +42,20 @@ use std::fs::File;
 use std::io::Cursor;
 use std::io::{self, Read, Seek, SeekFrom};
 use std::path::Path;
+use std::vec;
+
+#[derive(Debug)]
+pub struct GribResponse {
+    pub locations: Option<Vec<(f32, f32)>>,
+    pub results: Vec<GribResult>,
+}
+
+#[derive(Debug)]
+pub struct GribResult {
+    pub name: String,
+    pub level: u16,
+    pub values: Vec<f32>,
+}
 
 #[derive(Debug)]
 pub struct IndicatorSection {
@@ -126,8 +140,8 @@ pub struct GribFile<R> {
     length_gds: usize,
 }
 
-#[allow(dead_code)]
-struct Location {
+#[derive(Clone)]
+pub struct Location {
     pub lon: f32,
     pub lat: f32,
     pub index: usize,
@@ -297,7 +311,7 @@ impl GribFile<File> {
         has_bmp: bool,
         index: usize,
         locations: Option<&Vec<Location>>,
-    ) -> io::Result<()> {
+    ) -> Vec<f32> {
         let bds_index = index + self.length_indicator + self.length_pds + self.length_gds;
         self.file.seek(SeekFrom::Start(bds_index as u64)).unwrap();
 
@@ -308,7 +322,7 @@ impl GribFile<File> {
         };
 
         let len = self.get_length();
-        let buffer = self.read_exact_buffer(len)?;
+        let buffer = self.read_exact_buffer(len).unwrap();
         let binary_scale = read_i16_be(&buffer[4..]);
         let ref_value = read_f32_ibm(&buffer[6..]);
         let bit_count = buffer[10];
@@ -321,7 +335,7 @@ impl GribFile<File> {
             .map(|bmp| BitReader::endian(Cursor::new(bmp.bmp.as_slice()), BigEndian));
 
         // Decide which read strategy to use
-        match locations {
+        let _ = match locations {
             Some(locs) => self.read_selected_locations(
                 &mut r,
                 &mut bitmap_reader,
@@ -341,9 +355,9 @@ impl GribFile<File> {
                 ref_value,
                 factor,
             ),
-        }?;
+        };
 
-        Ok(())
+        result
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -369,7 +383,7 @@ impl GribFile<File> {
                         skip_bits = bds_index as u32 * bit_count as u32;
                     }
                     (false, _) => {
-                        result.push(0.0);
+                        result.push(9999.0);
                         continue;
                     }
                     _ => {
@@ -378,7 +392,7 @@ impl GribFile<File> {
                 }
             }
 
-            self.read_and_push_value(r, result, skip_bits, bit_count, ref_value, factor)?;
+            self.read_and_push_value(r, result, skip_bits, bit_count, ref_value, factor, true)?;
         }
         Ok(())
     }
@@ -406,12 +420,12 @@ impl GribFile<File> {
                 };
 
                 if !present {
-                    result.push(0.0);
+                    result.push(9999.0);
                     continue;
                 }
             }
 
-            self.read_and_push_value(r, result, 0, bit_count, ref_value, factor)?;
+            self.read_and_push_value(r, result, 0, bit_count, ref_value, factor, false)?;
         }
         Ok(())
     }
@@ -446,6 +460,7 @@ impl GribFile<File> {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn read_and_push_value(
         &self,
         r: &mut BitReader<Cursor<&[u8]>, BigEndian>,
@@ -454,13 +469,16 @@ impl GribFile<File> {
         bit_count: u8,
         ref_value: f32,
         factor: f32,
+        seek: bool,
     ) -> io::Result<()> {
-        r.seek_bits(SeekFrom::Start(0)).unwrap();
-        r.skip(skip_bits)?;
+        if seek {
+            r.seek_bits(SeekFrom::Start(0)).unwrap();
+            r.skip(skip_bits)?;
+        }
+
         match r.read::<u32>(bit_count as u32) {
             Ok(x) => {
                 let value = ref_value + (x as f32) * factor;
-                println!("value: {}", value);
                 result.push(value);
             }
             Err(_) => {
@@ -559,32 +577,53 @@ impl GribFile<File> {
         })
     }
 
-    pub fn read_grib_file(
+    pub fn get(
         &mut self,
         parameters: Option<&Vec<(&str, u16)>>,
         locations: Option<&Vec<(f32, f32)>>,
-    ) {
+    ) -> GribResponse {
         // ToDo: refactor so we don't need to clone the table
         let table_clone = self.table.clone();
         let p = table_clone.get_parameters_by_name(parameters).clone();
 
         self.create_index(&p);
 
-        let locations = self.create_locations(locations);
+        let indexed_locations = self.create_locations(locations);
 
         // refresh p with updated byte indexes
         let table_clone = self.table.clone();
         let p = table_clone.get_parameters_by_name(parameters).clone();
 
+        let response_locations = if locations.is_some() {
+            locations.cloned()
+        } else {
+            None
+        };
+
+        let mut grib_response = GribResponse {
+            locations: response_locations,
+            results: vec![],
+        };
+
         //iterate over all parameters and read bds
         for param in p {
             let has_bmp = param.has_bmp;
-            self.read_bds_section_from(has_bmp, param.byte_index, locations.as_ref())
-                .unwrap();
+            let values =
+                self.read_bds_section_from(has_bmp, param.byte_index, indexed_locations.as_ref());
+
+            let grib_result = GribResult {
+                name: param.short_name.clone(),
+                level: param.level,
+                values,
+            };
+
+            grib_response.results.push(grib_result);
         }
+
+        grib_response
     }
 
-    pub fn get_length(&mut self) -> usize {
+    fn get_length(&mut self) -> usize {
         let mut buffer = [0u8; 3];
         self.file.read_exact(&mut buffer).unwrap();
         let len = read_u24_be(&buffer[..]) as usize;
@@ -598,28 +637,91 @@ impl GribFile<File> {
 mod tests {
     use super::*;
 
-    // grib_get tmp 0
-    // 5.351926 51.7168
-    // tmp, 0: 276.264
-    //
-    // 4.913082420058467, 52.3422859189378
-    // tmp, 0: 277.343
+    const FILE_PATH1: &str = "../example_data/HA43_N20_202412221800_00000_GB";
+
     #[test]
-    fn test_load_grib_file() {
-        let parameters = vec![("isba", 802)];
+    fn get_parameters_locations() {
+        let parameters = vec![("tmp", 0), ("isba", 802)];
+        let locations = vec![(5.351926, 51.716_8), (4.913082420058467, 52.3422859189378)];
 
-        //let locations = vec![(5.351926, 51.716_8), (4.913082420058467, 52.3422859189378)];
-        let locations = vec![(4.913082420058467, 52.3422859189378)];
-        let start = std::time::Instant::now();
+        let grib_file = GribFile::open(FILE_PATH1);
+        let response = grib_file.unwrap().get(Some(&parameters), Some(&locations));
 
-        let grib_file = GribFile::open("../example_data/HA43_N20_202412221800_00000_GB");
-        grib_file
-            .unwrap()
-            .read_grib_file(Some(&parameters), Some(&locations));
+        assert_eq!(response.locations.unwrap().len(), 2);
+        assert_eq!(response.results.len(), 2);
 
-        let duration = start.elapsed();
-        println!("Time elapsed: {:?}", duration);
-        assert_eq!(1, 1);
+        // test no bmp
+        let tmp_result = response.results.iter().find(|r| r.name == "tmp").unwrap();
+        assert_eq!(tmp_result.level, 0);
+        assert_eq!(tmp_result.values.len(), 2);
+        assert_eq!(tmp_result.values[0], 276.26367);
+        assert_eq!(tmp_result.values[1], 277.34326);
+
+        // test with bmp
+        let isba_result = response.results.iter().find(|r| r.name == "isba").unwrap();
+        assert_eq!(isba_result.level, 802);
+        assert_eq!(isba_result.values.len(), 2);
+        assert_eq!(isba_result.values[0], 277.11752);
+        assert_eq!(isba_result.values[1], 279.4792);
+    }
+
+    #[test]
+    fn test_corner_locations_all_params() {
+        let locations = vec![
+            (0.0, 49.000004),    //idx 0
+            (11.281, 49.000004), //idx 389
+            (0.0, 56.002003),    //idx 151710
+            (11.281, 56.002003), //idx 152099
+        ];
+
+        let grib_file = GribFile::open(FILE_PATH1);
+        let response = grib_file.unwrap().get(None, Some(&locations));
+
+        assert_eq!(response.locations.unwrap().len(), 4);
+        assert_eq!(response.results.len(), 49);
+
+        let tmp_results = response
+            .results
+            .iter()
+            .find(|r| r.name == "tmp" && r.level == 0)
+            .unwrap();
+        assert_eq!(tmp_results.values.len(), 4);
+        assert_eq!(tmp_results.values[0], 279.03223);
+        assert_eq!(tmp_results.values[1], 272.89478);
+        assert_eq!(tmp_results.values[2], 282.67017);
+        assert_eq!(tmp_results.values[3], 278.8506);
+
+        let isba_result = response
+            .results
+            .iter()
+            .find(|r| r.name == "isba" && r.level == 802)
+            .unwrap();
+        assert_eq!(isba_result.values.len(), 4);
+        assert_eq!(isba_result.values[0], 279.97);
+        assert_eq!(isba_result.values[1], 273.80685);
+        assert_eq!(isba_result.values[2], 9999.0);
+        assert_eq!(isba_result.values[3], 278.47852);
+    }
+
+    #[test]
+    fn test_load_grib_file_no_locations() {
+        let parameters = vec![("tmp", 0), ("isba", 802)];
+
+        let grib_file = GribFile::open(FILE_PATH1);
+        let response = grib_file.unwrap().get(Some(&parameters), None);
+
+        assert!(response.locations.is_none());
+        assert_eq!(response.results.len(), 2);
+
+        let tmp_result = response.results.iter().find(|r| r.name == "tmp").unwrap();
+        assert_eq!(tmp_result.level, 0);
+        assert_eq!(tmp_result.values.len(), 152100);
+        assert_eq!(tmp_result.values[152099], 278.8506);
+
+        let isba_result = response.results.iter().find(|r| r.name == "isba").unwrap();
+        assert_eq!(isba_result.level, 802);
+        assert_eq!(isba_result.values.len(), 152100);
+        assert_eq!(isba_result.values[152099], 278.47852);
     }
 }
 
