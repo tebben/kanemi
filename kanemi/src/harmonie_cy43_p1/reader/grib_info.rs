@@ -55,7 +55,7 @@ impl TimeRangeIndicator {
 }
 
 #[derive(Debug, Clone)]
-pub struct MessageInfo {
+pub struct GribMetadata {
     pub code: ParameterCode,
     pub short_name: String,
     pub description: String,
@@ -64,19 +64,20 @@ pub struct MessageInfo {
     pub level: u16,
     pub time_range_indicator: TimeRangeIndicator,
     pub has_bmp: bool,
-    pub byte_index: usize,
+    pub byte_index: Option<usize>,
 }
 
-impl MessageInfo {
+impl GribMetadata {
     pub fn set_byte_index(&mut self, index: usize) {
-        self.byte_index = index;
+        self.byte_index = Some(index);
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct GRIBInfo {
-    table: HashMap<(u8, u8, u16, u8), MessageInfo>,
+    lookup: HashMap<(u8, u8, u16, u8), GribMetadata>,
     name_lookup: HashMap<(String, u16), (u8, u8, u16, u8)>,
+    pub forecast_time: Option<String>,
 }
 
 impl Default for GRIBInfo {
@@ -91,7 +92,7 @@ impl GRIBInfo {
         let mut name_lookup = HashMap::new();
 
         let parameters = vec![
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(1),
                 short_name: "pmsl".to_string(),
                 description: "Pressure altitude above mean sea level".to_string(),
@@ -100,9 +101,9 @@ impl GRIBInfo {
                 level: 0,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(1),
                 short_name: "psrf".to_string(),
                 description: "Pressure height above ground".to_string(),
@@ -111,9 +112,9 @@ impl GRIBInfo {
                 level: 0,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(6),
                 short_name: "gp".to_string(),
                 description: "Geopotential".to_string(),
@@ -122,9 +123,9 @@ impl GRIBInfo {
                 level: 0,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(11),
                 short_name: "tmp".to_string(),
                 description: "Temperature".to_string(),
@@ -133,9 +134,9 @@ impl GRIBInfo {
                 level: 0,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(11),
                 short_name: "tmp".to_string(),
                 description: "Temperature".to_string(),
@@ -144,9 +145,9 @@ impl GRIBInfo {
                 level: 2,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(11),
                 short_name: "tmp".to_string(),
                 description: "Temperature".to_string(),
@@ -155,9 +156,9 @@ impl GRIBInfo {
                 level: 50,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(11),
                 short_name: "tmp".to_string(),
                 description: "Temperature".to_string(),
@@ -166,9 +167,9 @@ impl GRIBInfo {
                 level: 100,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(11),
                 short_name: "tmp".to_string(),
                 description: "Temperature".to_string(),
@@ -177,9 +178,9 @@ impl GRIBInfo {
                 level: 200,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(11),
                 short_name: "tmp".to_string(),
                 description: "Temperature".to_string(),
@@ -188,9 +189,9 @@ impl GRIBInfo {
                 level: 300,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(11),
                 short_name: "isba".to_string(),
                 description: "Temperature of nature tile".to_string(),
@@ -199,9 +200,9 @@ impl GRIBInfo {
                 level: 800,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(11),
                 short_name: "isba".to_string(),
                 description: "Temperature of nature tile".to_string(),
@@ -210,9 +211,9 @@ impl GRIBInfo {
                 level: 801,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(11),
                 short_name: "isba".to_string(),
                 description: "Temperature of nature tile".to_string(),
@@ -221,9 +222,9 @@ impl GRIBInfo {
                 level: 802,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: true,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(17),
                 short_name: "dpt".to_string(),
                 description: "Dew-point temperature".to_string(),
@@ -232,9 +233,9 @@ impl GRIBInfo {
                 level: 2,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(20),
                 short_name: "vis".to_string(),
                 description: "Visibility".to_string(),
@@ -243,9 +244,9 @@ impl GRIBInfo {
                 level: 0,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(33),
                 short_name: "ugrd".to_string(),
                 description: "u-component of wind".to_string(),
@@ -254,9 +255,9 @@ impl GRIBInfo {
                 level: 10,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(33),
                 short_name: "ugrd".to_string(),
                 description: "u-component of wind".to_string(),
@@ -265,9 +266,9 @@ impl GRIBInfo {
                 level: 50,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(33),
                 short_name: "ugrd".to_string(),
                 description: "u-component of wind".to_string(),
@@ -276,9 +277,9 @@ impl GRIBInfo {
                 level: 100,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(33),
                 short_name: "ugrd".to_string(),
                 description: "u-component of wind".to_string(),
@@ -287,9 +288,9 @@ impl GRIBInfo {
                 level: 200,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(33),
                 short_name: "ugrd".to_string(),
                 description: "u-component of wind".to_string(),
@@ -298,9 +299,9 @@ impl GRIBInfo {
                 level: 300,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(34),
                 short_name: "vgrd".to_string(),
                 description: "v-component of wind".to_string(),
@@ -309,9 +310,9 @@ impl GRIBInfo {
                 level: 10,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(34),
                 short_name: "vgrd".to_string(),
                 description: "v-component of wind".to_string(),
@@ -320,9 +321,9 @@ impl GRIBInfo {
                 level: 50,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(34),
                 short_name: "vgrd".to_string(),
                 description: "v-component of wind".to_string(),
@@ -331,9 +332,9 @@ impl GRIBInfo {
                 level: 100,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(34),
                 short_name: "vgrd".to_string(),
                 description: "v-component of wind".to_string(),
@@ -342,9 +343,9 @@ impl GRIBInfo {
                 level: 200,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(34),
                 short_name: "vgrd".to_string(),
                 description: "v-component of wind".to_string(),
@@ -353,9 +354,9 @@ impl GRIBInfo {
                 level: 300,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(52),
                 short_name: "rh".to_string(),
                 description: "Relative humidity".to_string(),
@@ -364,9 +365,9 @@ impl GRIBInfo {
                 level: 2,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(61),
                 short_name: "apcp".to_string(),
                 description: "Total precipitation".to_string(),
@@ -375,9 +376,9 @@ impl GRIBInfo {
                 level: 0,
                 time_range_indicator: TimeRangeIndicator::AccumulatedOverForecastPeriod,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(65),
                 short_name: "weasd".to_string(),
                 description: "Water equivalent of accumulated snow depth".to_string(),
@@ -386,9 +387,9 @@ impl GRIBInfo {
                 level: 0,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(66),
                 short_name: "sd".to_string(),
                 description: "Snow depth".to_string(),
@@ -397,9 +398,9 @@ impl GRIBInfo {
                 level: 0,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: true,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(67),
                 short_name: "mixht".to_string(),
                 description: "Mixed layer depth".to_string(),
@@ -408,9 +409,9 @@ impl GRIBInfo {
                 level: 0,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(71),
                 short_name: "tcdc".to_string(),
                 description: "Total cloud cover".to_string(),
@@ -419,9 +420,9 @@ impl GRIBInfo {
                 level: 0,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(73),
                 short_name: "lcdc".to_string(),
                 description: "Low cloud cover".to_string(),
@@ -430,9 +431,9 @@ impl GRIBInfo {
                 level: 0,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(74),
                 short_name: "mcdc".to_string(),
                 description: "Medium cloud cover".to_string(),
@@ -441,9 +442,9 @@ impl GRIBInfo {
                 level: 0,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(75),
                 short_name: "hcdc".to_string(),
                 description: "High cloud cover".to_string(),
@@ -452,9 +453,9 @@ impl GRIBInfo {
                 level: 0,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(81),
                 short_name: "land".to_string(),
                 description: "Landcover".to_string(),
@@ -463,9 +464,9 @@ impl GRIBInfo {
                 level: 0,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(111),
                 short_name: "nswrs".to_string(),
                 description: "Net short-wave radiation flux (surface)".to_string(),
@@ -474,9 +475,9 @@ impl GRIBInfo {
                 level: 0,
                 time_range_indicator: TimeRangeIndicator::AccumulatedOverForecastPeriod,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(112),
                 short_name: "nlwrs".to_string(),
                 description: "Net long-wave radiation flux (surface)".to_string(),
@@ -485,9 +486,9 @@ impl GRIBInfo {
                 level: 0,
                 time_range_indicator: TimeRangeIndicator::AccumulatedOverForecastPeriod,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(117),
                 short_name: "grad".to_string(),
                 description: "Global radiation flux".to_string(),
@@ -496,9 +497,9 @@ impl GRIBInfo {
                 level: 0,
                 time_range_indicator: TimeRangeIndicator::AccumulatedOverForecastPeriod,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(122),
                 short_name: "shtfl".to_string(),
                 description: "Sensible heat flux".to_string(),
@@ -507,9 +508,9 @@ impl GRIBInfo {
                 level: 0,
                 time_range_indicator: TimeRangeIndicator::AccumulatedOverForecastPeriod,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(132),
                 short_name: "lhtfl".to_string(),
                 description: "Latent heat flux through evaporation".to_string(),
@@ -518,9 +519,9 @@ impl GRIBInfo {
                 level: 0,
                 time_range_indicator: TimeRangeIndicator::AccumulatedOverForecastPeriod,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(162),
                 short_name: "csulf".to_string(),
                 description: "U-momentum of gusts out of the model".to_string(),
@@ -529,9 +530,9 @@ impl GRIBInfo {
                 level: 10,
                 time_range_indicator: TimeRangeIndicator::AccumulatedOverPeriodPart,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(163),
                 short_name: "csdlf".to_string(),
                 description: "V-momentum of gusts out of the model".to_string(),
@@ -540,9 +541,9 @@ impl GRIBInfo {
                 level: 10,
                 time_range_indicator: TimeRangeIndicator::AccumulatedOverPeriodPart,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(181),
                 short_name: "lpsxc".to_string(),
                 description: "Cumulative sum rain".to_string(),
@@ -551,9 +552,9 @@ impl GRIBInfo {
                 level: 0,
                 time_range_indicator: TimeRangeIndicator::AccumulatedOverForecastPeriod,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(181),
                 short_name: "lpsx".to_string(),
                 description: "Rain".to_string(),
@@ -562,9 +563,9 @@ impl GRIBInfo {
                 level: 0,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(184),
                 short_name: "hgtyc".to_string(),
                 description: "Cumulative sum snow".to_string(),
@@ -573,9 +574,9 @@ impl GRIBInfo {
                 level: 0,
                 time_range_indicator: TimeRangeIndicator::AccumulatedOverForecastPeriod,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(184),
                 short_name: "hgty".to_string(),
                 description: "Snow".to_string(),
@@ -584,9 +585,9 @@ impl GRIBInfo {
                 level: 0,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(186),
                 short_name: "icng".to_string(),
                 description: "Cloud base".to_string(),
@@ -595,9 +596,9 @@ impl GRIBInfo {
                 level: 0,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: true,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(201),
                 short_name: "icwatc".to_string(),
                 description: "Cumulative sum graupel".to_string(),
@@ -606,9 +607,9 @@ impl GRIBInfo {
                 level: 0,
                 time_range_indicator: TimeRangeIndicator::AccumulatedOverForecastPeriod,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(201),
                 short_name: "icwat".to_string(),
                 description: "Graupel".to_string(),
@@ -617,9 +618,9 @@ impl GRIBInfo {
                 level: 0,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
-            MessageInfo {
+            GribMetadata {
                 code: ParameterCode::new(201),
                 short_name: "icwat".to_string(),
                 description: "Column integrated graupel".to_string(),
@@ -628,7 +629,7 @@ impl GRIBInfo {
                 level: 0,
                 time_range_indicator: TimeRangeIndicator::Instant,
                 has_bmp: false,
-                byte_index: 0,
+                byte_index: None,
             },
         ];
 
@@ -641,7 +642,7 @@ impl GRIBInfo {
                     param.level,
                     param.time_range_indicator as u8,
                 ),
-                param.clone(), // Clone to insert into the table
+                param.clone(),
             );
 
             name_lookup.insert(
@@ -655,7 +656,11 @@ impl GRIBInfo {
             );
         }
 
-        GRIBInfo { table, name_lookup }
+        GRIBInfo {
+            lookup: table,
+            name_lookup,
+            forecast_time: None,
+        }
     }
 
     /// Set the byte index for a parameter
@@ -668,14 +673,19 @@ impl GRIBInfo {
         index: usize,
     ) {
         let k = &(code, level_type, level, time_range_indicator);
-        if let Some(param) = self.table.get_mut(k) {
+        if let Some(param) = self.lookup.get_mut(k) {
             param.set_byte_index(index);
         }
     }
 
     /// Get all parameters
-    pub fn get_all_parameters(&self) -> Vec<&MessageInfo> {
-        self.table.values().collect()
+    pub fn get_all_parameters(&self) -> Vec<&GribMetadata> {
+        self.lookup.values().collect()
+    }
+
+    /// get a copy of all parameters
+    pub fn get_all_parameters_copy(&self) -> Vec<GribMetadata> {
+        self.lookup.values().cloned().collect()
     }
 
     /// Get a parameter by code, level type, level, and time range indicator
@@ -685,13 +695,13 @@ impl GRIBInfo {
         level_type: u8,
         level: u16,
         time_range_indicator: u8,
-    ) -> Option<&MessageInfo> {
+    ) -> Option<&GribMetadata> {
         let k = &(code, level_type, level, time_range_indicator);
-        self.table.get(k)
+        self.lookup.get(k)
     }
 
     /// Get a parameter by name and level
-    pub fn get_parameter_by_name(&self, name: &str, level: u16) -> Option<&MessageInfo> {
+    pub fn get_parameter_by_name(&self, name: &str, level: u16) -> Option<&GribMetadata> {
         let &(code, level_type, level, time_range_indicator) = self
             .name_lookup
             .get(&(name.to_lowercase().to_string(), level))?;
@@ -701,7 +711,7 @@ impl GRIBInfo {
     pub fn get_parameters_by_name(
         &self,
         parameters: Option<&Vec<(&str, u16)>>,
-    ) -> Vec<&MessageInfo> {
+    ) -> Vec<&GribMetadata> {
         if let Some(params) = parameters {
             params
                 .iter()
