@@ -10,6 +10,12 @@ pub enum GribError {
     ReadError(String),
     /// A given parameter is not found
     ParameterNotFound(String),
+    // Invalid Grib version
+    InvalidFile(String),
+    // Invalid length
+    InvalidLength(String),
+    // Message length error
+    MessageLengthError(String),
 }
 
 impl fmt::Display for GribError {
@@ -19,6 +25,9 @@ impl fmt::Display for GribError {
             GribError::FileNotFound(s) => write!(f, "File not found: {}", s),
             GribError::ReadError(s) => write!(f, "Read error: {}", s),
             GribError::ParameterNotFound(s) => write!(f, "Parameter not found: {}", s),
+            GribError::InvalidFile(s) => write!(f, "Invalid file: {}", s),
+            GribError::InvalidLength(s) => write!(f, "Invalid length: {}", s),
+            GribError::MessageLengthError(s) => write!(f, "Message length error: {}", s),
         }
     }
 }

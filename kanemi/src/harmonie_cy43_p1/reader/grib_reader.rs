@@ -47,6 +47,7 @@ use super::grib_info::{GRIBInfo, GribMetadata};
 use bitstream_io::{BigEndian, BitRead, BitReader};
 use serde::Deserialize;
 use std::collections::HashSet;
+use std::fs;
 use std::fs::File;
 use std::io::Cursor;
 use std::io::{self, Read, Seek, SeekFrom};
@@ -171,7 +172,13 @@ pub struct CY43P1Reader {
 
 impl CY43P1Reader {
     pub fn open<P: AsRef<Path>>(path: P) -> Result<CY43P1Reader, GribError> {
-        let file = File::open(path).map_err(|e| GribError::FileNotFound(e.to_string()))?;
+        if fs::metadata(path.as_ref()).is_err() {
+            return Err(GribError::FileNotFound(
+                "No such file or directory".to_string(),
+            ));
+        }
+
+        let file = File::open(path).map_err(|e| GribError::ReadError(e.to_string()))?;
         let metadata = file
             .metadata()
             .map_err(|e| GribError::ReadError(e.to_string()))?;
@@ -211,19 +218,18 @@ impl CY43P1Reader {
     ) -> Result<GribResponse, GribError> {
         let table_clone = self.metadata.clone();
         let parameter_info = table_clone
-            .get_parameters_by_name(parameters.as_ref())
+            .get_parameters_by_name(parameters.as_ref())?
             .clone();
 
         let mut self_mut = self;
         self_mut.create_index(&parameter_info);
 
-        //self.create_index(&parameter_info);
-        let indexed_locations = self_mut.create_locations(locations.as_ref());
+        let indexed_locations = self_mut.create_locations(locations.as_ref())?;
 
         // refresh parameter_info with updated byte indexes
         let table_clone = self_mut.metadata.clone();
         let parameter_info = table_clone
-            .get_parameters_by_name(parameters.as_ref())
+            .get_parameters_by_name(parameters.as_ref())?
             .clone();
         let time = self_mut.metadata.forecast_time.clone().unwrap_or_default();
         let mut grib_response = GribResponse {
@@ -236,7 +242,8 @@ impl CY43P1Reader {
         for param in parameter_info {
             let has_bmp = param.has_bmp;
             let byte_index = param.byte_index.unwrap();
-            let values = self_mut.read_bds_section(has_bmp, byte_index, indexed_locations.as_ref());
+            let values =
+                self_mut.read_bds_section(has_bmp, byte_index, indexed_locations.as_ref())?;
 
             let grib_result = GribResult {
                 name: param.short_name.clone(),
@@ -271,42 +278,38 @@ impl CY43P1Reader {
     /// use kanemi::harmonie_cy43_p1::reader::CY43P1Reader;
     ///
     /// let reader = CY43P1Reader::open("../example_data/HA43_N20_202412221800_00000_GB").unwrap();
-    /// let idx = reader.closest_lon_lat_idx(5.351926, 51.716801);
+    /// let idx = reader.closest_lon_lat_idx(5.351926, 51.716801).unwrap();
     /// ```
-    pub fn closest_lon_lat_idx(&self, lon: f32, lat: f32) -> usize {
+    pub fn closest_lon_lat_idx(&self, lon: f32, lat: f32) -> Result<usize, GribError> {
+        if lon < self.grid.longitude_west || lon > self.grid.longitude_east {
+            return Err(GribError::OutOfBounds(
+                "Longitude out of bounds".to_string(),
+            ));
+        }
+        if lat < self.grid.latitude_south || lat > self.grid.latitude_north {
+            return Err(GribError::OutOfBounds("Latitude out of bounds".to_string()));
+        }
+
         // Compute indices
-        let lon_idx = (((lon - self.grid.longitude_west) / self.grid.longitude_spacing)
-            .round()
-            .clamp(0.0, (self.grid.number_of_longitude_points - 1) as f32))
-            as usize;
-        let lat_idx = (((lat - self.grid.latitude_south) / self.grid.latitude_spacing)
-            .round()
-            .clamp(0.0, (self.grid.number_of_latitude_points - 1) as f32))
-            as usize;
+        let lon_idx =
+            ((lon - self.grid.longitude_west) / self.grid.longitude_spacing).round() as usize;
+        let lat_idx =
+            ((lat - self.grid.latitude_south) / self.grid.latitude_spacing).round() as usize;
 
         // Return computed 1D index based on scanning mode
-        lat_idx * self.grid.number_of_longitude_points + lon_idx
+        Ok(lat_idx * self.grid.number_of_longitude_points + lon_idx)
     }
 
-    fn read_indicator_section(&mut self) -> io::Result<Option<IndicatorSection>> {
+    fn read_indicator_section(&mut self) -> Result<Option<IndicatorSection>, GribError> {
         let buffer = self.read_exact_buffer(8)?;
         let marker = &buffer[0..4];
         if &marker != b"GRIB" {
-            match std::str::from_utf8(marker) {
-                Ok(marker_str) => println!("Marker as string: {}", marker_str),
-                Err(_) => println!("Marker is not valid UTF-8"),
-            }
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "Invalid GRIB file",
-            ));
+            return Err(GribError::InvalidFile("Unable to read marker".to_string()));
         }
         let section_length = read_u24_be(&buffer[4..]);
-
         if section_length > self.file_size as u32 {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "Section length exceeds file size",
+            return Err(GribError::InvalidLength(
+                "Invalid section length".to_string(),
             ));
         }
 
@@ -317,8 +320,10 @@ impl CY43P1Reader {
         }))
     }
 
-    fn read_product_definition_section(&mut self) -> io::Result<Option<ProductDefinitionSection>> {
-        let len = self.get_message_length();
+    fn read_product_definition_section(
+        &mut self,
+    ) -> Result<Option<ProductDefinitionSection>, GribError> {
+        let len = self.get_message_length()?;
         let buffer = self.read_exact_buffer(len)?;
         let section = ProductDefinitionSection {
             table_version_number: buffer[3],
@@ -343,8 +348,8 @@ impl CY43P1Reader {
     #[allow(dead_code)]
     fn read_grid_identification_section(
         &mut self,
-    ) -> io::Result<Option<GridIdentificationSection>> {
-        let len = self.get_message_length();
+    ) -> Result<Option<GridIdentificationSection>, GribError> {
+        let len = self.get_message_length()?;
         let buffer = self.read_exact_buffer(len)?;
         let pv_location = buffer[4];
         let data_representation_type = buffer[5];
@@ -381,15 +386,15 @@ impl CY43P1Reader {
         }))
     }
 
-    fn read_bitmap_section(&mut self) -> BitmapSection {
-        let len = self.get_message_length();
+    fn read_bitmap_section(&mut self) -> Result<BitmapSection, GribError> {
+        let len = self.get_message_length()?;
         let buffer = self.read_exact_buffer(len).unwrap();
 
-        BitmapSection {
+        Ok(BitmapSection {
             number_of_unused_bits_at_end_of_section3: buffer[3],
             table_reference: read_u16_be(&buffer[4..]),
             bmp: buffer[6..].to_vec(),
-        }
+        })
     }
 
     fn read_bds_section(
@@ -397,17 +402,17 @@ impl CY43P1Reader {
         has_bmp: bool,
         index: usize,
         locations: Option<&Vec<Location>>,
-    ) -> Vec<f32> {
+    ) -> Result<Vec<f32>, GribError> {
         let bds_index = index + self.length_indicator + self.length_pds + self.length_gds;
         self.file.seek(SeekFrom::Start(bds_index as u64)).unwrap();
 
         let bitmap = if has_bmp {
-            Some(self.read_bitmap_section())
+            Some(self.read_bitmap_section()?)
         } else {
             None
         };
 
-        let len = self.get_message_length();
+        let len = self.get_message_length()?;
         let buffer = self.read_exact_buffer(len).unwrap();
         let binary_scale = read_i16_be(&buffer[4..]);
         let ref_value = read_f32_ibm(&buffer[6..]);
@@ -443,7 +448,7 @@ impl CY43P1Reader {
             ),
         };
 
-        result
+        Ok(result)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -497,14 +502,7 @@ impl CY43P1Reader {
         let value_count = self.grid.value_count as usize;
         for _ in 0..value_count {
             if has_bmp {
-                let present = match bitmap_reader.as_mut().unwrap().read_bit() {
-                    Ok(val) => val,
-                    Err(err) => {
-                        println!("Bitmap reader error {:?}", err);
-                        false
-                    }
-                };
-
+                let present = bitmap_reader.as_mut().unwrap().read_bit().unwrap_or(false);
                 if !present {
                     result.push(9999.0);
                     continue;
@@ -647,29 +645,40 @@ impl CY43P1Reader {
     }
 
     // create locations from &Vec<(f64, f64)>
-    fn create_locations(&self, locations: Option<&Vec<(f32, f32)>>) -> Option<Vec<Location>> {
-        locations.map(|locs| {
+    fn create_locations(
+        &self,
+        locations: Option<&Vec<(f32, f32)>>,
+    ) -> Result<Option<Vec<Location>>, GribError> {
+        locations.map_or(Ok(None), |locs| {
             locs.iter()
-                .map(|(lon, lat)| Location::new(*lon, *lat, self.closest_lon_lat_idx(*lon, *lat)))
-                .collect()
+                .map(|(lon, lat)| {
+                    self.closest_lon_lat_idx(*lon, *lat)
+                        .map(|index| Location::new(*lon, *lat, index))
+                })
+                .collect::<Result<Vec<_>, _>>()
+                .map(Some)
         })
     }
 
     /// Read a buffer of a given length from the file
-    fn read_exact_buffer(&mut self, len: usize) -> io::Result<Vec<u8>> {
+    fn read_exact_buffer(&mut self, len: usize) -> Result<Vec<u8>, GribError> {
         let mut buffer = vec![0u8; len];
-        self.file.read_exact(&mut buffer)?;
+        self.file
+            .read_exact(&mut buffer)
+            .map_err(|e| GribError::ReadError(e.to_string()))?;
         Ok(buffer)
     }
 
     /// Get the length of a message
-    fn get_message_length(&mut self) -> usize {
+    fn get_message_length(&mut self) -> Result<usize, GribError> {
         let mut buffer = [0u8; 3];
-        self.file.read_exact(&mut buffer).unwrap();
+        self.file
+            .read_exact(&mut buffer)
+            .map_err(|e| GribError::MessageLengthError(e.to_string()))?;
         let len = read_u24_be(&buffer[..]) as usize;
         self.file.seek(SeekFrom::Current(-3)).unwrap();
 
-        len
+        Ok(len)
     }
 }
 
@@ -793,5 +802,47 @@ mod tests {
         assert_eq!(isba.level_type, LevelType::HeightAboveGround);
         assert_eq!(isba.time_range_indicator, TimeRangeIndicator::Instant);
         assert_eq!(isba.has_bmp, true);
+    }
+
+    // test GribErrors
+    #[test]
+    fn test_open_file_not_found() {
+        let result = CY43P1Reader::open("not_a_file");
+        assert!(result.is_err());
+        assert_eq!(
+            result.err().unwrap().to_string(),
+            "File not found: No such file or directory"
+        );
+    }
+
+    #[test]
+    fn test_parameter_error() {
+        let grib_file = CY43P1Reader::open(FILE_PATH1).unwrap();
+        let result = grib_file.get(Some(vec![("not_a_param", 0), ("tmp", 0)]), None);
+
+        assert!(result.is_err());
+        assert_eq!(
+            result.err().unwrap().to_string(),
+            "Parameter not found: name: not_a_param, level: 0"
+        );
+    }
+
+    #[test]
+    fn test_out_of_bounds() {
+        let grib_file = CY43P1Reader::open(FILE_PATH1).unwrap();
+        let result = grib_file.closest_lon_lat_idx(0.0, 0.0);
+
+        assert!(result.is_err());
+        assert_eq!(
+            result.err().unwrap().to_string(),
+            "Out of bounds: Latitude out of bounds"
+        );
+
+        let result = grib_file.closest_lon_lat_idx(100.0, 0.0);
+        assert!(result.is_err());
+        assert_eq!(
+            result.err().unwrap().to_string(),
+            "Out of bounds: Longitude out of bounds"
+        );
     }
 }

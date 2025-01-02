@@ -1,3 +1,4 @@
+use super::errors::GribError;
 use std::collections::HashMap;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
@@ -695,30 +696,53 @@ impl GRIBInfo {
         level_type: u8,
         level: u16,
         time_range_indicator: u8,
-    ) -> Option<&GribMetadata> {
+    ) -> Result<&GribMetadata, GribError> {
         let k = &(code, level_type, level, time_range_indicator);
-        self.lookup.get(k)
+        let entry = self.lookup.get(k);
+        if entry.is_none() {
+            return Err(GribError::ParameterNotFound(format!(
+                "code: {}, level_type: {}, level: {}, time_range_indicator: {}",
+                code, level_type, level, time_range_indicator
+            )));
+        }
+
+        Ok(entry.unwrap())
     }
 
     /// Get a parameter by name and level
-    pub fn get_parameter_by_name(&self, name: &str, level: u16) -> Option<&GribMetadata> {
-        let &(code, level_type, level, time_range_indicator) = self
+    pub fn get_parameter_by_name(
+        &self,
+        name: &str,
+        level: u16,
+    ) -> Result<&GribMetadata, GribError> {
+        let entry = self
             .name_lookup
-            .get(&(name.to_lowercase().to_string(), level))?;
-        self.get_parameter(code, level_type, level, time_range_indicator)
+            .get(&(name.to_lowercase().to_string(), level));
+
+        if entry.is_none() {
+            return Err(GribError::ParameterNotFound(format!(
+                "name: {}, level: {}",
+                name, level
+            )));
+        }
+
+        let &(code, level_type, level, time_range_indicator) = entry.unwrap();
+        let parameter = self.get_parameter(code, level_type, level, time_range_indicator)?;
+
+        Ok(parameter)
     }
 
     pub fn get_parameters_by_name(
         &self,
         parameters: Option<&Vec<(&str, u16)>>,
-    ) -> Vec<&GribMetadata> {
+    ) -> Result<Vec<&GribMetadata>, GribError> {
         if let Some(params) = parameters {
             params
                 .iter()
-                .map(|(name, level)| self.get_parameter_by_name(name, *level).unwrap())
-                .collect()
+                .map(|(name, level)| self.get_parameter_by_name(name, *level))
+                .collect::<Result<Vec<&GribMetadata>, GribError>>()
         } else {
-            self.get_all_parameters()
+            Ok(self.get_all_parameters())
         }
     }
 }
