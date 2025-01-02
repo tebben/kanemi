@@ -36,13 +36,13 @@
 // [v] Test if location to index is correct
 // [v] Add if param has bmp
 // [v] Table lookup by name and level
-// - Cleanup
 // [v] Add function to read given values all and at specific locations
 // - Error handling
 // - Tests
 // - Benchmarks
 
 use super::bits::{read_f32_ibm, read_i16_be, read_u16_be, read_u24_be};
+use super::errors::GribError;
 use super::grib_info::{GRIBInfo, GribMetadata};
 use bitstream_io::{BigEndian, BitRead, BitReader};
 use serde::Deserialize;
@@ -159,8 +159,8 @@ struct BitmapSection {
     pub bmp: Vec<u8>,
 }
 
-pub struct Reader<R> {
-    file: R,
+pub struct CY43P1Reader {
+    file: File,
     file_size: u64,
     metadata: GRIBInfo,
     grid: GridIdentificationSection,
@@ -169,12 +169,15 @@ pub struct Reader<R> {
     length_gds: usize,
 }
 
-impl Reader<File> {
-    pub fn open<P: AsRef<Path>>(path: P) -> io::Result<Reader<File>> {
-        let file = File::open(path)?;
-        let file_size = file.metadata()?.len();
+impl CY43P1Reader {
+    pub fn open<P: AsRef<Path>>(path: P) -> Result<CY43P1Reader, GribError> {
+        let file = File::open(path).map_err(|e| GribError::FileNotFound(e.to_string()))?;
+        let metadata = file
+            .metadata()
+            .map_err(|e| GribError::ReadError(e.to_string()))?;
 
-        let grib_file = Reader {
+        let file_size = metadata.len();
+        let grib_file = CY43P1Reader {
             file,
             file_size,
             metadata: GRIBInfo::new(),
@@ -187,40 +190,53 @@ impl Reader<File> {
         Ok(grib_file)
     }
 
+    /// Get the data for the given parameters and locations
+    /// If no parameters are given, all available parameters are returned
+    /// If no locations are given, all values are returned
+    ///
+    /// # Example
+    /// ```
+    /// use kanemi::harmonie_cy43_p1::reader::CY43P1Reader;
+    ///
+    /// let parameters = vec![("tmp", 0), ("isba", 802)];
+    /// let locations = vec![(5.351926, 51.716801), (4.9130824, 52.34228)];
+    ///
+    /// let reader = CY43P1Reader::open("../example_data/HA43_N20_202412221800_00000_GB").unwrap();
+    /// let response = reader.get(Some(parameters), Some(locations));
+    /// ```
     pub fn get(
-        &mut self,
-        parameters: Option<&Vec<(&str, u16)>>,
-        locations: Option<&Vec<(f32, f32)>>,
-    ) -> GribResponse {
-        // ToDo: refactor so we don't need to clone the table
+        self,
+        parameters: Option<Vec<(&str, u16)>>,
+        locations: Option<Vec<(f32, f32)>>,
+    ) -> Result<GribResponse, GribError> {
         let table_clone = self.metadata.clone();
-        let p = table_clone.get_parameters_by_name(parameters).clone();
+        let parameter_info = table_clone
+            .get_parameters_by_name(parameters.as_ref())
+            .clone();
 
-        self.create_index(&p);
+        let mut self_mut = self;
+        self_mut.create_index(&parameter_info);
 
-        let indexed_locations = self.create_locations(locations);
+        //self.create_index(&parameter_info);
+        let indexed_locations = self_mut.create_locations(locations.as_ref());
 
-        // refresh p with updated byte indexes
-        let table_clone = self.metadata.clone();
-        let p = table_clone.get_parameters_by_name(parameters).clone();
-
-        let response_locations = if locations.is_some() {
-            locations.cloned()
-        } else {
-            None
-        };
-
+        // refresh parameter_info with updated byte indexes
+        let table_clone = self_mut.metadata.clone();
+        let parameter_info = table_clone
+            .get_parameters_by_name(parameters.as_ref())
+            .clone();
+        let time = self_mut.metadata.forecast_time.clone().unwrap_or_default();
         let mut grib_response = GribResponse {
-            time: self.metadata.forecast_time.clone().unwrap(),
-            locations: response_locations,
+            time,
+            locations,
             results: vec![],
         };
 
         //iterate over all parameters and read bds
-        for param in p {
+        for param in parameter_info {
             let has_bmp = param.has_bmp;
             let byte_index = param.byte_index.unwrap();
-            let values = self.read_bds_section(has_bmp, byte_index, indexed_locations.as_ref());
+            let values = self_mut.read_bds_section(has_bmp, byte_index, indexed_locations.as_ref());
 
             let grib_result = GribResult {
                 name: param.short_name.clone(),
@@ -231,16 +247,33 @@ impl Reader<File> {
             grib_response.results.push(grib_result);
         }
 
-        grib_response
+        Ok(grib_response)
     }
 
+    /// Get all available parameters in the GRIB file
+    ///
+    /// # Example
+    /// ```
+    /// use kanemi::harmonie_cy43_p1::reader::CY43P1Reader;
+    ///
+    /// let reader = CY43P1Reader::open("../example_data/HA43_N20_202412221800_00000_GB").unwrap();
+    /// let parameters = reader.available_parameters();
+    /// ```
     pub fn available_parameters(&self) -> Vec<GribMetadata> {
         self.metadata.get_all_parameters_copy()
     }
 
     /// Find the index of the closest longitude and latitude point in the grid
     /// to the given longitude and latitude
-    pub fn closest_lon_lat_idx(&self, lon: &f32, lat: &f32) -> usize {
+    ///
+    /// # Example
+    /// ```
+    /// use kanemi::harmonie_cy43_p1::reader::CY43P1Reader;
+    ///
+    /// let reader = CY43P1Reader::open("../example_data/HA43_N20_202412221800_00000_GB").unwrap();
+    /// let idx = reader.closest_lon_lat_idx(5.351926, 51.716801);
+    /// ```
+    pub fn closest_lon_lat_idx(&self, lon: f32, lat: f32) -> usize {
         // Compute indices
         let lon_idx = (((lon - self.grid.longitude_west) / self.grid.longitude_spacing)
             .round()
@@ -617,7 +650,7 @@ impl Reader<File> {
     fn create_locations(&self, locations: Option<&Vec<(f32, f32)>>) -> Option<Vec<Location>> {
         locations.map(|locs| {
             locs.iter()
-                .map(|(lon, lat)| Location::new(*lon, *lat, self.closest_lon_lat_idx(lon, lat)))
+                .map(|(lon, lat)| Location::new(*lon, *lat, self.closest_lon_lat_idx(*lon, *lat)))
                 .collect()
         })
     }
@@ -642,9 +675,9 @@ impl Reader<File> {
 
 #[cfg(test)]
 mod tests {
-    use crate::harmonie_cy43_p1::{LevelType, TimeRangeIndicator};
 
     use super::*;
+    use crate::harmonie_cy43_p1::reader::grib_info::{LevelType, TimeRangeIndicator};
 
     const FILE_PATH1: &str = "../example_data/HA43_N20_202412221800_00000_GB";
 
@@ -653,8 +686,8 @@ mod tests {
         let parameters = vec![("tmp", 0), ("isba", 802)];
         let locations = vec![(5.351926, 51.716_8), (4.913082420058467, 52.3422859189378)];
 
-        let grib_file = Reader::open(FILE_PATH1);
-        let response = grib_file.unwrap().get(Some(&parameters), Some(&locations));
+        let grib_file = CY43P1Reader::open(FILE_PATH1).unwrap();
+        let response = grib_file.get(Some(parameters), Some(locations)).unwrap();
 
         assert_eq!(response.locations.unwrap().len(), 2);
         assert_eq!(response.results.len(), 2);
@@ -684,8 +717,8 @@ mod tests {
             (11.281, 56.002003), //idx 152099
         ];
 
-        let grib_file = Reader::open(FILE_PATH1);
-        let response = grib_file.unwrap().get(None, Some(&locations));
+        let grib_file = CY43P1Reader::open(FILE_PATH1).unwrap();
+        let response = grib_file.get(None, Some(locations)).unwrap();
 
         assert_eq!(response.locations.unwrap().len(), 4);
         assert_eq!(response.results.len(), 49);
@@ -717,8 +750,8 @@ mod tests {
     fn test_load_grib_file_no_locations() {
         let parameters = vec![("tmp", 0), ("isba", 802)];
 
-        let grib_file = Reader::open(FILE_PATH1);
-        let response = grib_file.unwrap().get(Some(&parameters), None);
+        let grib_file = CY43P1Reader::open(FILE_PATH1).unwrap();
+        let response = grib_file.get(Some(parameters), None).unwrap();
 
         assert!(response.locations.is_none());
         assert_eq!(response.results.len(), 2);
@@ -736,8 +769,8 @@ mod tests {
 
     #[test]
     fn test_available_parameters() {
-        let grib_file = Reader::open(FILE_PATH1);
-        let parameters = grib_file.unwrap().available_parameters();
+        let grib_file = CY43P1Reader::open(FILE_PATH1).unwrap();
+        let parameters = grib_file.available_parameters();
 
         assert_eq!(parameters.len(), 49);
 

@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use kanemi::harmonie_cy43_p1::Reader;
+use kanemi::harmonie_cy43_p1::reader::CY43P1Reader;
 
 //
 // Benchmark results trying to check implementations and optimizations.
@@ -57,14 +57,16 @@ use kanemi::harmonie_cy43_p1::Reader;
 
 const FILE_PATH: &str = "../example_data/HA43_N20_202412221800_00000_GB";
 const LOCATIONS_SINGLE: &[(f32, f32)] = &[(5.351926_f32, 51.716_8_f32)];
-const PARAMETERS_SINGLE: &[(&str, u16)] = &[("isba", 801)];
+const PARAMETERS_SINGLE: &[(&str, u16)] = &[("tmp", 0)];
 
 fn read_grib_cy43_p1() {
-    let grib_file = Reader::open(FILE_PATH);
-    grib_file.unwrap().get(
-        Some(&PARAMETERS_SINGLE.to_vec()),
-        Some(&LOCATIONS_SINGLE.to_vec()),
-    );
+    let grib_file = CY43P1Reader::open(FILE_PATH).unwrap();
+    let _ = grib_file
+        .get(
+            Some(PARAMETERS_SINGLE.to_vec()),
+            Some(LOCATIONS_SINGLE.to_vec()),
+        )
+        .unwrap();
 }
 
 fn benchmarks(c: &mut Criterion) {
