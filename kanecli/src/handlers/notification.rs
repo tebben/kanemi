@@ -28,7 +28,7 @@ pub async fn handle_command(options: NotificationOptions) {
         Uuid::new_v4().to_string()
     };
 
-    let dataset_config = DatasetConfig::new(options.dataset_name, options.dataset_version);
+    let dataset_config = DatasetConfig::new(options.name, options.version);
     if let Err(e) = run(options.api_key, client_id, dataset_config).await {
         eprintln!("Error: {}", e);
     }

@@ -1,10 +1,10 @@
-use crate::commands::forecast::ForecastOptions;
+use crate::commands::nowcast_precipitation::NowcastPrecipitationOptions;
 use kanemi::{
     dataplatform::{api::OpenDataAPI, models::config::DatasetConfig},
     nowcast_precipitation::dataset,
 };
 
-pub async fn handle_command(options: ForecastOptions) {
+pub async fn handle_command(options: NowcastPrecipitationOptions) {
     let dataset_config = DatasetConfig::new("radar_forecast".to_string(), "2.0".to_string());
     let (longitude, latitude) = options.location;
     get_forecast(

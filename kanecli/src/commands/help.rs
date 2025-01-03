@@ -153,3 +153,17 @@ identify the state of the MQTT session between the client and the server. If you
 with a client id that already has a session present, the old one will be terminated. After a
 disconnect for whatever reason, by reconnecting with the same client ID,
 the session will resume seamlessly and receive missed messages"#;
+
+pub const SHORT_HELP_CY43P1_FORECAST_INPUT: &str =
+    r#"file or list of files, a directory or .tar file"#;
+pub const LONG_HELP_CY43P1_FORECAST_INPUT: &str =
+    r#"Provide a file or list of files, a single directory or a single .tar file"#;
+pub const SHORT_HELP_CY43P1_FORECAST_LOCATIONS: &str =
+    r#"Locations in the format 'longitude,latitude'"#;
+pub const LONG_HELP_CY43P1_FORECAST_LOCATIONS: &str = r#"Provide locations in the format 'longitude,latitude'. For example: '5.351926,51.7168 4.913082420058467,52.3422859189378'"#;
+pub const SHORT_HELP_CY43P1_FORECAST_PARAMETERS: &str = r#"Parameters in the format 'name,level'"#;
+pub const LONG_HELP_CY43P1_FORECAST_PARAMETERS: &str =
+    r#"Provide parameters in the format 'name,level'. For example: 'tmp,0 tmp,50 isba,802'"#;
+pub const SHORT_HELP_CY43P1_FORECAST_HOURS: &str = r#"The max forecast hours to return"#;
+pub const LONG_HELP_CY43P1_FORECAST_HOURS: &str =
+    r#"Provide the max forecast hours to return, if not provided all hours (60) will be returned"#;

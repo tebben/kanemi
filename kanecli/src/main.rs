@@ -14,14 +14,17 @@ async fn main() {
         CliCommands::Download(download) => {
             handlers::download::handle_command(download).await;
         }
-        CliCommands::Forecast(forecast) => {
-            handlers::forecast::handle_command(forecast).await;
+        CliCommands::NowcastPrecipitation(forecast) => {
+            handlers::nowcast_precipitation::handle_command(forecast).await;
         }
         CliCommands::Notifications(notification) => {
             handlers::notification::handle_command(notification).await;
         }
         CliCommands::Geocoder { command } => {
             handlers::geocoder::handle_command(command).await;
+        }
+        CliCommands::HarmonieCY43P1 { command } => {
+            handlers::cy43p1::handle_command(command).await;
         }
     };
 }

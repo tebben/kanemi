@@ -2,7 +2,7 @@ use super::help::*;
 use clap::Args;
 
 #[derive(Args, Debug)]
-pub struct ForecastOptions {
+pub struct NowcastPrecipitationOptions {
     #[arg(short, long, env = "KNMI_API_KEY_OPEN_DATA", help = SHORT_HELP_API_KEY_ODA, long_help = LONG_HELP_API_KEY_ODA)]
     pub api_key: String,
 

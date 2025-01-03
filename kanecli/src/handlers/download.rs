@@ -15,14 +15,12 @@ pub struct ErrorMessage {
 }
 
 pub async fn handle_command(options: DownloadOptions) {
-    let dataset_config = kanemi::dataplatform::models::config::DatasetConfig::new(
-        options.dataset_name,
-        options.dataset_version,
-    );
+    let dataset_config =
+        kanemi::dataplatform::models::config::DatasetConfig::new(options.name, options.version);
 
     let oda = OpenDataAPI::new(options.api_key, dataset_config, None);
     let download_result = oda
-        .download_latest_file(&options.output_dir, options.output_filename, Some(true))
+        .download_latest_file(&options.dir, options.filename, Some(true))
         .await;
     if let Err(e) = download_result {
         let message = ErrorMessage {

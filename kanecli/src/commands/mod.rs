@@ -1,16 +1,17 @@
 mod help;
 
+pub mod cy43p1;
 pub mod download;
-pub mod forecast;
 pub mod geocoder;
 pub mod notifications;
+pub mod nowcast_precipitation;
 
 use clap::{Parser, Subcommand};
 
 #[derive(Parser, Debug)]
 #[command(name = "kanecli")]
 #[command(version = "1.0")]
-#[command(about = "A CLI tool to work with KNMI data and maybe some other stuff", long_about = None)]
+#[command(about = "A CLI tool to work with KNMI api's and some datasets may contain some other stuff aswell", long_about = None)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: CliCommands,
@@ -21,10 +22,16 @@ pub enum CliCommands {
     /// Download KNMI data from the Open Data API
     Download(download::DownloadOptions),
 
-    /// Print the precipitation forecast from input file or a newly downloaded KNMI dataset
-    Forecast(forecast::ForecastOptions),
+    /// Dataset: Nowcast precipitation (2 hour precipitation forecast)
+    NowcastPrecipitation(nowcast_precipitation::NowcastPrecipitationOptions),
 
-    /// Test the notification service
+    /// Dataset: Harmonie CY43 P1 (60 hours weather forecast for the Netherlands)
+    HarmonieCY43P1 {
+        #[command(subcommand)]
+        command: cy43p1::CY43P1Options,
+    },
+
+    /// Receive messages from the KNMI notification service on new data availability
     Notifications(notifications::NotificationOptions),
 
     /// Geocode or reverse geocode a location using the PDOK Locatieserver
