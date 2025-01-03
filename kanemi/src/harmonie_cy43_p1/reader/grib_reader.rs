@@ -31,21 +31,13 @@
 // 27: (34,10), 28: (162,10), 29: (163,10), 30: (75,0), 31: (74,0), 32: (73,0), 33: (71,0), 34: (67,0), 35: (181,0),
 // 36: (184,0), 37: (201,0), 38: (1,0), 39: (1,0), 40: (81,0), 41: (11,802), 42: (66,0), 43: (61,0), 44: (20,0),
 // 45: (17,2), 46: (186,0), 47: (201,0), 48: (11,800), 49: (11,801)
-//
-// ToDo:
-// [v] Test if location to index is correct
-// [v] Add if param has bmp
-// [v] Table lookup by name and level
-// [v] Add function to read given values all and at specific locations
-// - Error handling
-// - Tests
-// - Benchmarks
 
 use super::bits::{read_f32_ibm, read_i16_be, read_u16_be, read_u24_be};
 use super::errors::GribError;
 use super::grib_info::{GRIBInfo, GribMetadata};
 use bitstream_io::{BigEndian, BitRead, BitReader};
-use serde::Deserialize;
+use serde::Serialize;
+use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fs;
 use std::fs::File;
@@ -54,14 +46,14 @@ use std::io::{self, Read, Seek, SeekFrom};
 use std::path::Path;
 use std::vec;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct GribResponse {
     pub time: String,
     pub locations: Option<Vec<(f32, f32)>>,
     pub results: Vec<GribResult>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct GribResult {
     pub name: String,
     pub level: u16,
@@ -160,10 +152,11 @@ struct BitmapSection {
     pub bmp: Vec<u8>,
 }
 
+#[derive(Debug)]
 pub struct CY43P1Reader {
-    file: File,
+    file: RefCell<File>,
     file_size: u64,
-    metadata: GRIBInfo,
+    metadata: RefCell<GRIBInfo>,
     grid: GridIdentificationSection,
     length_indicator: usize,
     length_pds: usize,
@@ -185,9 +178,9 @@ impl CY43P1Reader {
 
         let file_size = metadata.len();
         let grib_file = CY43P1Reader {
-            file,
+            file: RefCell::new(file),
             file_size,
-            metadata: GRIBInfo::new(),
+            metadata: RefCell::new(GRIBInfo::new()),
             grid: GridIdentificationSection::default(),
             length_indicator: 8,
             length_pds: 28,
@@ -212,26 +205,31 @@ impl CY43P1Reader {
     /// let response = reader.get(Some(parameters), Some(locations));
     /// ```
     pub fn get(
-        self,
+        &self,
         parameters: Option<Vec<(&str, u16)>>,
         locations: Option<Vec<(f32, f32)>>,
     ) -> Result<GribResponse, GribError> {
-        let table_clone = self.metadata.clone();
+        let mut file = self.file.borrow_mut();
+        let table_clone = self.metadata.borrow().clone();
         let parameter_info = table_clone
             .get_parameters_by_name(parameters.as_ref())?
             .clone();
 
-        let mut self_mut = self;
-        self_mut.create_index(&parameter_info);
+        self.create_index(&mut file, &parameter_info);
 
-        let indexed_locations = self_mut.create_locations(locations.as_ref())?;
+        let indexed_locations = self.create_locations(locations.as_ref())?;
 
         // refresh parameter_info with updated byte indexes
-        let table_clone = self_mut.metadata.clone();
+        let table_clone = self.metadata.borrow().clone();
         let parameter_info = table_clone
             .get_parameters_by_name(parameters.as_ref())?
             .clone();
-        let time = self_mut.metadata.forecast_time.clone().unwrap_or_default();
+        let time = self
+            .metadata
+            .borrow()
+            .forecast_time
+            .clone()
+            .unwrap_or_default();
         let mut grib_response = GribResponse {
             time,
             locations,
@@ -243,7 +241,7 @@ impl CY43P1Reader {
             let has_bmp = param.has_bmp;
             let byte_index = param.byte_index.unwrap();
             let values =
-                self_mut.read_bds_section(has_bmp, byte_index, indexed_locations.as_ref())?;
+                self.read_bds_section(&mut file, has_bmp, byte_index, indexed_locations.as_ref())?;
 
             let grib_result = GribResult {
                 name: param.short_name.clone(),
@@ -267,7 +265,7 @@ impl CY43P1Reader {
     /// let parameters = reader.available_parameters();
     /// ```
     pub fn available_parameters(&self) -> Vec<GribMetadata> {
-        self.metadata.get_all_parameters_copy()
+        self.metadata.borrow().get_all_parameters_copy()
     }
 
     /// Find the index of the closest longitude and latitude point in the grid
@@ -300,8 +298,11 @@ impl CY43P1Reader {
         Ok(lat_idx * self.grid.number_of_longitude_points + lon_idx)
     }
 
-    fn read_indicator_section(&mut self) -> Result<Option<IndicatorSection>, GribError> {
-        let buffer = self.read_exact_buffer(8)?;
+    fn read_indicator_section(
+        &self,
+        file: &mut File,
+    ) -> Result<Option<IndicatorSection>, GribError> {
+        let buffer = self.read_exact_buffer(file, 8)?;
         let marker = &buffer[0..4];
         if &marker != b"GRIB" {
             return Err(GribError::InvalidFile("Unable to read marker".to_string()));
@@ -321,10 +322,11 @@ impl CY43P1Reader {
     }
 
     fn read_product_definition_section(
-        &mut self,
+        &self,
+        file: &mut File,
     ) -> Result<Option<ProductDefinitionSection>, GribError> {
-        let len = self.get_message_length()?;
-        let buffer = self.read_exact_buffer(len)?;
+        let len = self.get_message_length(file)?;
+        let buffer = self.read_exact_buffer(file, len)?;
         let section = ProductDefinitionSection {
             table_version_number: buffer[3],
             originating_center: buffer[4],
@@ -347,10 +349,11 @@ impl CY43P1Reader {
 
     #[allow(dead_code)]
     fn read_grid_identification_section(
-        &mut self,
+        &self,
+        file: &mut File,
     ) -> Result<Option<GridIdentificationSection>, GribError> {
-        let len = self.get_message_length()?;
-        let buffer = self.read_exact_buffer(len)?;
+        let len = self.get_message_length(file)?;
+        let buffer = self.read_exact_buffer(file, len)?;
         let pv_location = buffer[4];
         let data_representation_type = buffer[5];
         let number_of_latitude_points = u16::from_be_bytes([buffer[6], buffer[7]]) as usize;
@@ -386,9 +389,9 @@ impl CY43P1Reader {
         }))
     }
 
-    fn read_bitmap_section(&mut self) -> Result<BitmapSection, GribError> {
-        let len = self.get_message_length()?;
-        let buffer = self.read_exact_buffer(len).unwrap();
+    fn read_bitmap_section(&self, file: &mut File) -> Result<BitmapSection, GribError> {
+        let len = self.get_message_length(file)?;
+        let buffer = self.read_exact_buffer(file, len).unwrap();
 
         Ok(BitmapSection {
             number_of_unused_bits_at_end_of_section3: buffer[3],
@@ -398,22 +401,23 @@ impl CY43P1Reader {
     }
 
     fn read_bds_section(
-        &mut self,
+        &self,
+        file: &mut File,
         has_bmp: bool,
         index: usize,
         locations: Option<&Vec<Location>>,
     ) -> Result<Vec<f32>, GribError> {
         let bds_index = index + self.length_indicator + self.length_pds + self.length_gds;
-        self.file.seek(SeekFrom::Start(bds_index as u64)).unwrap();
+        file.seek(SeekFrom::Start(bds_index as u64)).unwrap();
 
         let bitmap = if has_bmp {
-            Some(self.read_bitmap_section()?)
+            Some(self.read_bitmap_section(file)?)
         } else {
             None
         };
 
-        let len = self.get_message_length()?;
-        let buffer = self.read_exact_buffer(len).unwrap();
+        let len = self.get_message_length(file)?;
+        let buffer = self.read_exact_buffer(file, len).unwrap();
         let binary_scale = read_i16_be(&buffer[4..]);
         let ref_value = read_f32_ibm(&buffer[6..]);
         let bit_count = buffer[10];
@@ -525,7 +529,6 @@ impl CY43P1Reader {
             reader.seek_bits(SeekFrom::Start(0))?;
 
             let mut bds_index = 0;
-
             for _ in 0..skip_bits {
                 if reader.read_bit()? {
                     bds_index += 1;
@@ -533,7 +536,6 @@ impl CY43P1Reader {
             }
 
             let value_present = reader.read_bit()?;
-
             if !value_present {
                 return Ok((false, None));
             }
@@ -578,7 +580,7 @@ impl CY43P1Reader {
     // If someone wants to read all messages this doesn't slow it down
     // since we are not reading the sections multiple times and can skip around in our reader
     // using the indexes.
-    fn create_index(&mut self, parameters: &Vec<&GribMetadata>) {
+    fn create_index(&self, file: &mut File, parameters: &Vec<&GribMetadata>) {
         let mut stack = vec![0];
         let target_params: HashSet<_> = parameters
             .iter()
@@ -601,14 +603,14 @@ impl CY43P1Reader {
         let mut found_parameters = 0;
 
         while let Some(index) = stack.pop() {
-            self.file.seek(SeekFrom::Start(index)).unwrap();
+            file.seek(SeekFrom::Start(index)).unwrap();
 
             let mut next = 0;
 
-            if let Some(indicator) = self.read_indicator_section().unwrap() {
+            if let Some(indicator) = self.read_indicator_section(file).unwrap() {
                 next = index + indicator.section_length as u64;
 
-                if let Some(pds) = self.read_product_definition_section().unwrap() {
+                if let Some(pds) = self.read_product_definition_section(file).unwrap() {
                     if target_params.contains(&(
                         pds.parameter_code,
                         pds.level,
@@ -617,11 +619,12 @@ impl CY43P1Reader {
                     )) {
                         found_parameters += 1;
 
-                        if self.metadata.forecast_time.is_none() {
-                            self.metadata.forecast_time = Some(pds.reference_time.clone());
+                        let mut metadata = self.metadata.borrow_mut();
+                        if metadata.forecast_time.is_none() {
+                            metadata.forecast_time = Some(pds.reference_time.clone());
                         }
 
-                        self.metadata.set_byte_index(
+                        metadata.set_byte_index(
                             pds.parameter_code,
                             pds.level_type,
                             pds.level,
@@ -632,8 +635,6 @@ impl CY43P1Reader {
                         if found_parameters == tartget_parameter_count {
                             return;
                         }
-                    } else {
-                        // Optional: handle non-matching parameters differently if needed.
                     }
                 }
             }
@@ -661,22 +662,20 @@ impl CY43P1Reader {
     }
 
     /// Read a buffer of a given length from the file
-    fn read_exact_buffer(&mut self, len: usize) -> Result<Vec<u8>, GribError> {
+    fn read_exact_buffer(&self, file: &mut File, len: usize) -> Result<Vec<u8>, GribError> {
         let mut buffer = vec![0u8; len];
-        self.file
-            .read_exact(&mut buffer)
+        file.read_exact(&mut buffer)
             .map_err(|e| GribError::ReadError(e.to_string()))?;
         Ok(buffer)
     }
 
     /// Get the length of a message
-    fn get_message_length(&mut self) -> Result<usize, GribError> {
+    fn get_message_length(&self, file: &mut File) -> Result<usize, GribError> {
         let mut buffer = [0u8; 3];
-        self.file
-            .read_exact(&mut buffer)
+        file.read_exact(&mut buffer)
             .map_err(|e| GribError::MessageLengthError(e.to_string()))?;
         let len = read_u24_be(&buffer[..]) as usize;
-        self.file.seek(SeekFrom::Current(-3)).unwrap();
+        file.seek(SeekFrom::Current(-3)).unwrap();
 
         Ok(len)
     }
@@ -804,7 +803,6 @@ mod tests {
         assert_eq!(isba.has_bmp, true);
     }
 
-    // test GribErrors
     #[test]
     fn test_open_file_not_found() {
         let result = CY43P1Reader::open("not_a_file");
