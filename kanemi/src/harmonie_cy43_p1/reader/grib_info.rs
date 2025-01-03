@@ -1,7 +1,9 @@
+use serde::Serialize;
+
 use super::errors::GribError;
 use std::collections::HashMap;
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize)]
 pub struct ParameterCode(u8);
 
 impl ParameterCode {
@@ -15,7 +17,7 @@ impl ParameterCode {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Serialize)]
 pub enum LevelType {
     IsobaricLevel = 100,
     AltitudeAboveSeaLevel = 103,
@@ -37,7 +39,7 @@ impl LevelType {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Serialize)]
 pub enum TimeRangeIndicator {
     Instant = 0,
     AccumulatedOverPeriodPart = 2,
@@ -55,7 +57,7 @@ impl TimeRangeIndicator {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct GribMetadata {
     pub code: ParameterCode,
     pub short_name: String,
@@ -734,7 +736,7 @@ impl GRIBInfo {
 
     pub fn get_parameters_by_name(
         &self,
-        parameters: Option<&Vec<(&str, u16)>>,
+        parameters: Option<&Vec<(String, u16)>>,
     ) -> Result<Vec<&GribMetadata>, GribError> {
         if let Some(params) = parameters {
             params

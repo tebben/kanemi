@@ -198,7 +198,7 @@ impl CY43P1Reader {
     /// ```
     /// use kanemi::harmonie_cy43_p1::reader::CY43P1Reader;
     ///
-    /// let parameters = vec![("tmp", 0), ("isba", 802)];
+    /// let parameters = vec![("tmp".to_string(), 0), ("isba".to_string(), 802)];
     /// let locations = vec![(5.351926, 51.716801), (4.9130824, 52.34228)];
     ///
     /// let reader = CY43P1Reader::open("../example_data/HA43_N20_202412221800_00000_GB").unwrap();
@@ -206,7 +206,7 @@ impl CY43P1Reader {
     /// ```
     pub fn get(
         &self,
-        parameters: Option<Vec<(&str, u16)>>,
+        parameters: Option<Vec<(String, u16)>>,
         locations: Option<Vec<(f32, f32)>>,
     ) -> Result<GribResponse, GribError> {
         let mut file = self.file.borrow_mut();
@@ -691,7 +691,7 @@ mod tests {
 
     #[test]
     fn get_parameters_locations() {
-        let parameters = vec![("tmp", 0), ("isba", 802)];
+        let parameters = vec![("tmp".to_string(), 0), ("isba".to_string(), 802)];
         let locations = vec![(5.351926, 51.716_8), (4.913082420058467, 52.3422859189378)];
 
         let grib_file = CY43P1Reader::open(FILE_PATH1).unwrap();
@@ -756,7 +756,7 @@ mod tests {
 
     #[test]
     fn test_load_grib_file_no_locations() {
-        let parameters = vec![("tmp", 0), ("isba", 802)];
+        let parameters = vec![("tmp".to_string(), 0), ("isba".to_string(), 802)];
 
         let grib_file = CY43P1Reader::open(FILE_PATH1).unwrap();
         let response = grib_file.get(Some(parameters), None).unwrap();
@@ -816,7 +816,10 @@ mod tests {
     #[test]
     fn test_parameter_error() {
         let grib_file = CY43P1Reader::open(FILE_PATH1).unwrap();
-        let result = grib_file.get(Some(vec![("not_a_param", 0), ("tmp", 0)]), None);
+        let result = grib_file.get(
+            Some(vec![("not_a_param".to_string(), 0), ("tmp".to_string(), 0)]),
+            None,
+        );
 
         assert!(result.is_err());
         assert_eq!(

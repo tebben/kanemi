@@ -4,6 +4,8 @@ mod grib_info;
 mod grib_reader;
 
 pub use errors::GribError;
+pub use grib_info::GRIBInfo;
+pub use grib_info::GribMetadata;
 pub use grib_info::LevelType;
 pub use grib_info::ParameterCode;
 pub use grib_info::TimeRangeIndicator;
