@@ -168,7 +168,7 @@ kanecli download -a <your-api-key> -d ./output -n radar_forecast -v 2.0
 ```bash
 Print the precipitation forecast from input file or a newly downloaded KNMI dataset
 
-Usage: kanecli forecast [OPTIONS] --api-key <API_KEY> --location <LOCATION>
+Usage: kanecli nowcast-precipitation [OPTIONS] --api-key <API_KEY> --location <LOCATION>
 
 Options:
   -a, --api-key <API_KEY>        API key for the KNMI Open Data API [env: KNMI_API_KEY_OPEN_DATA=]
@@ -181,7 +181,7 @@ Options:
 #### Example: Load the nowcast precipitation h5 file from disk and get the forecast for a given location
 
 ```bash
-kanecli forecast -i ./example_data/RAD_NL25_RAC_FM_202412222055.h5 -l 4.91978668,52.36648685
+kanecli nowcast-precipitation -i ./example_data/RAD_NL25_RAC_FM_202412222055.h5 -l 4.91978668,52.36648685
 ```
 
 #### Example: Download the latest dataset to ./output and get the precipitation forecast for a location
@@ -189,7 +189,7 @@ kanecli forecast -i ./example_data/RAD_NL25_RAC_FM_202412222055.h5 -l 4.91978668
 Since the latest dataset is downloaded you need to provide the api-key.
 
 ```bash
-kanecli forecast -a <your-api-key> -o ./output -l 4.91978668,52.36648685
+kanecli nowcast-precipitation -a <your-api-key> -o ./output -l 4.91978668,52.36648685
 ```
 
 ### Harmonie CY43 P1
