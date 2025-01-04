@@ -1,6 +1,7 @@
 use crate::errors::CY43P1Error;
 use crate::harmonie_cy43_p1::reader::CY43P1Reader;
-use crate::harmonie_cy43_p1::reader::{GRIBInfo, GribMetadata};
+use crate::harmonie_cy43_p1::reader::{GRIBInfo, GribMetadata, GribResponse};
+use crate::harmonie_cy43_p1::wind_image::create_image;
 use chrono::{DateTime, Duration, SecondsFormat, Utc};
 use regex::Regex;
 use serde::Serialize;
@@ -169,6 +170,37 @@ impl Dataset {
         Ok(dataset)
     }
 
+    pub fn get_raw(
+        &self,
+        parameters: Option<Vec<(String, u16)>>,
+    ) -> Result<GribResponse, CY43P1Error> {
+        let reader = self.readers.first().unwrap();
+        let data = reader.cy43p1_reader.get(parameters, None)?;
+
+        Ok(data)
+    }
+
+    pub fn create_wind_image(&self) {
+        let parameters = vec![("ugrd".to_string(), 10), ("vgrd".to_string(), 10)];
+        let data = self.get_raw(Some(parameters)).unwrap();
+        let u_vec = data
+            .results
+            .iter()
+            .find(|r| r.name == "ugrd" && r.level == 10)
+            .unwrap()
+            .values
+            .clone();
+        let v_vec = data
+            .results
+            .iter()
+            .find(|r| r.name == "vgrd" && r.level == 10)
+            .unwrap()
+            .values
+            .clone();
+
+        create_image(&u_vec, &v_vec);
+    }
+
     pub fn get_forecast(
         &self,
         locations: Vec<(f32, f32)>,
@@ -283,5 +315,12 @@ mod tests {
         let parameters = get_available_parameters();
         let pretty_data = serde_json::to_string_pretty(&parameters).unwrap();
         println!("{}", pretty_data);
+    }
+
+    #[test]
+    fn test_create_wind_flow_field() {
+        let filepaths = vec![FILE_PATH1.to_string()];
+        let dataset = Dataset::from_files(filepaths, None).unwrap();
+        dataset.create_wind_image();
     }
 }
