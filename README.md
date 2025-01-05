@@ -53,6 +53,12 @@ This repo consists of multiple libraries and tools. Everythng is work in progres
   - Load dataset from a list of GRIB files, a directory containing GRIB files or directly from a .tar file
   - Get forecast for location(s) with optional requested parameters and time horizon
   - Get available parameters and their units
+  - Experimental: flow field image generation from wind u/v components
+
+<p align="center" style="width: 100%">
+  <img src="static/flow_field.jpg" alt="drawing" width="600"/>
+</p>
+ 
 
 ### Library pdok_geocoder
 
