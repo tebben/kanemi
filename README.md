@@ -159,7 +159,7 @@ kanecli download -a <your-api-key> -d ./output -n radar_forecast -v 2.0
 ```JSON
 {
   "success": true,
-  "data": "./output-test/RAD_NL25_RAC_FM_202501031440.h5"
+  "data": "./output/RAD_NL25_RAC_FM_202501031440.h5"
 }
 ```
 
