@@ -1,7 +1,7 @@
 use crate::errors::CY43P1Error;
 use crate::harmonie_cy43_p1::reader::CY43P1Reader;
 use crate::harmonie_cy43_p1::reader::{GRIBInfo, GribMetadata, GribResponse};
-use crate::harmonie_cy43_p1::wind_image::create_image;
+use crate::harmonie_cy43_p1::wind_image::{create_image, ColorStep};
 use chrono::{DateTime, Duration, SecondsFormat, Utc};
 use regex::Regex;
 use serde::Serialize;
@@ -180,7 +180,15 @@ impl Dataset {
         Ok(data)
     }
 
-    pub fn create_wind_image(&self) {
+    pub fn create_wind_image(
+        &self,
+        output_path: &str,
+        upscale_factor: u32,
+        density: f32,
+        antialiasing: bool,
+        line_multiplier: Option<f32>,
+        color_steps: Option<&[ColorStep]>,
+    ) {
         let parameters = vec![("ugrd".to_string(), 10), ("vgrd".to_string(), 10)];
         let data = self.get_raw(Some(parameters)).unwrap();
         let u_vec = data
@@ -198,7 +206,16 @@ impl Dataset {
             .values
             .clone();
 
-        create_image(&u_vec, &v_vec);
+        create_image(
+            output_path,
+            &u_vec,
+            &v_vec,
+            upscale_factor,
+            density,
+            antialiasing,
+            line_multiplier,
+            color_steps,
+        );
     }
 
     pub fn get_forecast(
@@ -290,6 +307,7 @@ impl Dataset {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::harmonie_cy43_p1::{get_palette, Palette};
 
     const FILE_PATH1: &str = "../example_data/HA43_N20_202412221800_00000_GB";
 
@@ -321,6 +339,21 @@ mod tests {
     fn test_create_wind_flow_field() {
         let filepaths = vec![FILE_PATH1.to_string()];
         let dataset = Dataset::from_files(filepaths, None).unwrap();
-        dataset.create_wind_image();
+
+        // Create a cheap flow field image (cheap as in drawing of lines instead of vector grid with particles and iterations)
+        let upscale_factor = 4;
+        let density = 0.1;
+        let antialiasing = false;
+        let line_multiplier = Some(1.8);
+        let palette = get_palette(Palette::Default);
+
+        dataset.create_wind_image(
+            "flow_field_test.png",
+            upscale_factor,
+            density,
+            antialiasing,
+            line_multiplier,
+            Some(&palette),
+        );
     }
 }
